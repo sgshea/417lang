@@ -3,6 +3,7 @@ use std::{fmt, io};
 use serde_json::Value;
 
 /// All the types of the lispy language
+#[derive(PartialEq, Eq, Debug)]
 pub enum LType {
     Integer(i64),
 }
@@ -70,5 +71,38 @@ impl std::error::Error for LError {
             LError::ParseError => None,
             LError::IOError(e) => Some(e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_valid_integer() -> Result<(), LError> {
+        assert_eq!(LType::Integer(10), LType::interpret_as_value("10")?);
+        assert_eq!(LType::Integer(-10), LType::interpret_as_value("-10")?);
+        assert_eq!(LType::Integer(0), LType::interpret_as_value("0")?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_invalid_integer() -> Result<(), LError> {
+        assert!(LType::interpret_as_value("\"\"").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("str").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("0.5").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("-0.5").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("[something]").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("()").is_err_and(|e| matches!(e, LError::ParseError)));
+
+        // Construct numbers larger and smaller than the range supported
+        let big_num = i64::MAX as u64 + 10;
+        // (Creating a string version manually less than i64::MIN)
+        let small_num = "-".to_string() + &big_num.to_string();
+        assert!(LType::interpret_as_value(&big_num.to_string()).is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value(&small_num).is_err_and(|e| matches!(e, LError::ParseError)));
+
+        Ok(())
     }
 }
