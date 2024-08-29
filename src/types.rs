@@ -2,7 +2,7 @@ use std::{fmt, io};
 
 use serde_json::Value;
 
-/// All the types of the lispy language
+/// All the types of the language
 #[derive(PartialEq, Eq, Debug)]
 pub enum LType {
     Integer(i64),
@@ -22,17 +22,17 @@ impl LType {
                                 return Ok(LType::Integer(n))
                             }
                             None => {
-                                return Err(LError::ParseError)
+                                return Err(LError::ParseError(format!("{} is not a valid i64!", num)))
                             },
                         };
                     },
                     _ => {
-                        Err(LError::ParseError)
+                        Err(LError::ParseError(format!("{} is not an implemented type!", val)))
                     },
                 }
             },
-            Err(_e) => {
-                Err(LError::ParseError)
+            Err(e) => {
+                Err(LError::ParseError(format!("JSON parsing error: {}", e)))
             }
         }
     }
@@ -51,7 +51,7 @@ impl fmt::Display for LType {
 #[derive(Debug)]
 pub enum LError {
     // Error while parsing
-    ParseError,
+    ParseError(String),
     // Error while trying to read from IO
     IOError(io::Error)
 }
@@ -59,8 +59,8 @@ pub enum LError {
 impl fmt::Display for LError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LError::ParseError => write!(f, "error while parsing"),
-            LError::IOError(e) => e.fmt(f),
+            LError::ParseError(m) => write!(f, "Value Error: {}", m),
+            LError::IOError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -68,7 +68,7 @@ impl fmt::Display for LError {
 impl std::error::Error for LError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            LError::ParseError => None,
+            LError::ParseError(_) => None,
             LError::IOError(e) => Some(e),
         }
     }
@@ -89,19 +89,19 @@ mod tests {
 
     #[test]
     fn parse_invalid_integer() -> Result<(), LError> {
-        assert!(LType::interpret_as_value("\"\"").is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value("str").is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value("0.5").is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value("-0.5").is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value("[something]").is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value("()").is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value("\"\"").is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value("str").is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value("0.5").is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value("-0.5").is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value("[something]").is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value("()").is_err_and(|e| matches!(e, LError::ParseError(_))));
 
         // Construct numbers larger and smaller than the range supported
         let big_num = i64::MAX as u64 + 10;
         // (Creating a string version manually less than i64::MIN)
         let small_num = "-".to_string() + &big_num.to_string();
-        assert!(LType::interpret_as_value(&big_num.to_string()).is_err_and(|e| matches!(e, LError::ParseError)));
-        assert!(LType::interpret_as_value(&small_num).is_err_and(|e| matches!(e, LError::ParseError)));
+        assert!(LType::interpret_as_value(&big_num.to_string()).is_err_and(|e| matches!(e, LError::ParseError(_))));
+        assert!(LType::interpret_as_value(&small_num).is_err_and(|e| matches!(e, LError::ParseError(_))));
 
         Ok(())
     }
