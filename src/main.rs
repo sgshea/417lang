@@ -1,17 +1,25 @@
-mod repl;
-mod types;
+mod reader;
+mod interpreter;
+mod environment;
+mod functions;
 
-use std::env;
-use repl::{rep, repl};
-use types::LError;
+use std::error::Error;
 
-fn main() -> Result<(), LError> {
-    // If argument "--repl" is passed in, evaluate in a loop
-    let args: Vec<String> = env::args().collect();
-    if args.contains(&"--repl".to_string()) {
-        repl()
-    } else {
-        rep()
+use environment::Environment;
+use interpreter::interpret;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let input = reader::read_stdin();
+    let mut env = Environment::new();
+
+    match input {
+        Err(e) => Err(Box::new(e)),
+        Ok(val) => {
+            match interpret(val, &mut env) {
+                Err(e) => Err(Box::new(e)),
+                Ok(_) => Ok(()),
+            }
+        },
     }
 }
 
