@@ -4,7 +4,10 @@ use crate::interpreter::{exprs_into_i64, Expr, InterpError};
 pub enum Function {
     // Will eventually have another variant for functions created in the language
     // Internal Rust function (holds a function pointer)
-    RFunc(fn(&[Expr]) -> Result<Expr, InterpError>),
+    RFunc{
+        name: String,
+        func: fn(&[Expr]) -> Result<Expr, InterpError>,
+    },
 }
 
 /// BEGIN INBUILT FUNCTIONS

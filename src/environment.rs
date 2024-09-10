@@ -15,8 +15,8 @@ impl Environment {
         stack.insert("x".to_string(), Expr::Integer(10));
         stack.insert("v".to_string(), Expr::Integer(5));
         stack.insert("i".to_string(), Expr::Integer(1));
-        stack.insert("add".to_string(), Expr::Function(RFunc(add)));
-        stack.insert("sub".to_string(), Expr::Function(RFunc(sub)));
+        stack.insert("add".to_string(), Expr::Function(RFunc{name: "add".to_string(), func: add}));
+        stack.insert("sub".to_string(), Expr::Function(RFunc{name: "sub".to_string(), func: sub}));
 
         Self {
             stack,

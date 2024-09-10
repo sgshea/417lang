@@ -8,7 +8,7 @@ use std::error::Error;
 use environment::Environment;
 use interpreter::interpret;
 
-fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<(), Box<dyn Error>> {
     // Read JSON from input
     let input = reader::read_stdin();
     // Initialize the environment

@@ -62,7 +62,7 @@ impl Expr {
                                 list.split_first().ok_or(InterpError::ArgumentError)?;
                             match first {
                                 Expr::Function(func) => match func {
-                                    Function::RFunc(f) => f(rest),
+                                    Function::RFunc { name: _name, func } => func(rest),
                                 },
                                 _ => Err(InterpError::ArgumentError),
                             }
@@ -133,7 +133,7 @@ impl fmt::Display for Expr {
             Expr::Symbol(val) => write!(fmt, "{}", val),
             Expr::List(list) => write!(fmt, "{:#?}", list),
             Expr::Function(func) => match func {
-                Function::RFunc(f) => write!(fmt, "{:?}", f),
+                Function::RFunc { name, func: _ } => write!(fmt, "function: {}", name),
             },
         }
     }

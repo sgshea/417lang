@@ -4,6 +4,11 @@ use std::io;
 
 use serde_json::Value;
 
-pub fn read_stdin() -> Result<Value, serde_json::Error> {
-    serde_json::from_reader(io::stdin())
+use crate::interpreter::InterpError;
+
+pub fn read_stdin() -> Result<Value, InterpError> {
+    match serde_json::from_reader(io::stdin()) {
+        Err(_) => Err(InterpError::ParseError("Invalid JSON AST".to_string())),
+        Ok(ok) => Ok(ok),
+    }
 }
