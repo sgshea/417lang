@@ -9,9 +9,12 @@ use environment::Environment;
 use interpreter::interpret;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // Read JSON from input
     let input = reader::read_stdin();
-    let mut env = Environment::new();
+    // Initialize the environment
+    let mut env = Environment::default_environment();
 
+    // Interpret input
     match input {
         Err(e) => Err(Box::new(e)),
         Ok(val) => {
