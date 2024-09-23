@@ -1,10 +1,28 @@
+use lexer::{Lexer, Token};
+use parser::Parser;
+use serde_json::Value;
+
 mod lexer;
 mod parser;
 
+pub fn parse(input: &str) -> Value {
+    let mut lexer = Lexer::new(input);
+
+    let mut tokens = vec![];
+    loop {
+        let token = lexer.next_token();
+        if token == Token::EOF {
+            tokens.push(token);
+            break;
+        }
+        tokens.push(token);
+    }
+
+    Parser::new(&tokens).parse_program()
+}
+
 #[cfg(test)]
 mod tests {
-    use lexer::{Lexer, Token};
-    use parser::Parser;
     use serde_json::Value;
 
     use super::*;
@@ -31,20 +49,8 @@ mod tests {
         {"Identifier": "n"},1]}]}]}]}]}]}]}]}
         "#;
         let output_json: Value = serde_json::from_str(output).expect("should be valid json");
-        let mut lexer = Lexer::new(input);
 
-        let mut tokens = vec![];
-        loop {
-            let token = lexer.next_token();
-            if token == Token::EOF {
-                tokens.push(token);
-                break;
-            }
-            tokens.push(token);
-        }
-
-        let mut parser = Parser::new(&tokens);
-        let ast = parser.parse_program();
+        let ast = parse(input);
         println!("{}", serde_json::to_string_pretty(&ast).unwrap());
         println!("{}", serde_json::to_string_pretty(&output_json).unwrap());
         assert_eq!(ast, output_json);

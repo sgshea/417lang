@@ -1,21 +1,21 @@
 # CSC417 Language Project
 Language implemented in [Rust](https://www.rust-lang.org/)
 
-## Arguments
-Program can be built and ran using `cargo run` or `cargo run --release` (release build is faster execution)
+## Repository Structure
+Repo organized into a Cargo Workspace, with two subcrates: `parser` and `interpreter`
+- `parser` contains a Rust implementation of the parser, and is a library crate (not executable)
+- `interpreter` is the Rust implementation of the language interpreter and is a binary crate
 
-Default behavior (checkpoint 1) is to only take in a single string.
-Passing in the `repl` argument will keep the program running until stopped.
-> `cargo run --release -- --repl`
+## Running
+`run.sh` is a shortcut to `cargo run -p interpreter --release` which runs the interpreter crate.
+- Input from stdin can be piped into the program, expecting a JSON AST
 
-## Files
-- `Cargo.toml` Defines dependencies
-- `src/main.rs` Program entry point, handles arguments
-- `src/repl.rs` Reading from standard input
-- `src/types.rs` Language type definitions and interpret function
+### Running Custom Parser
+The custom parser is integrated into the interpreter using the `"parser"` feature.
 
-### Tests
-Some files (`types.rs`) have tests which can be run using `cargo test`
+The following command runs the interpreter with this feature, allowing it to take in the raw program.
+`cargo run -p interpreter --release --features "parser"`
+- Can use `run.sh -p` as a shortcut
 
 ## Dependencies
 `serde` and `serde_json`: JSON parsing

@@ -4,7 +4,12 @@ authors = ["Sammy Shea", "sgshea@ncsu.edu"]
 version = "0.1.0"
 edition = "2021"
 
+[features]
+parser = ["dep:parser"]
+
 [dependencies]
 # json parsing
 serde = "1.0.210"
 serde_json = "1.0.128"
+
+parser = { path = "../parser", optional = true}
