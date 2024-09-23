@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cargo run --release
+cargo run -p interpreter --release

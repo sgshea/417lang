@@ -1,0 +1,10 @@
+[package]
+name = "interpreter"
+authors = ["Sammy Shea", "sgshea@ncsu.edu"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# json parsing
+serde = "1.0.210"
+serde_json = "1.0.128"

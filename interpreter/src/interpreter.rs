@@ -9,6 +9,8 @@ use crate::{environment::Environment, functions::Function};
 pub enum Expr {
     // Integer value
     Integer(i64),
+    // Boolean
+    Boolean(bool),
     // String value
     String(String),
     // Symbol value
@@ -33,6 +35,9 @@ impl Expr {
                         )))
                     }
                 };
+            }
+            Value::Bool(bool) => {
+                Ok(Expr::Boolean(*bool))
             }
             Value::String(string) => {
                 // Turn a string into a Expr::String
@@ -68,6 +73,25 @@ impl Expr {
                             }
                         }
                         _ => Err(InterpError::ArgumentError),
+                    }
+                } else if let Some(arr) = obj.get("Cond") {
+                    Expr::eval(arr, env)
+                } else if let Some(arr) = obj.get("Clause") {
+                    match Expr::eval(arr, env)? {
+                        Expr::List(list) => {
+                            let (condition, expression) = list.split_at(1);
+                            match condition[0] {
+                                Expr::Boolean(b) => {
+                                    if b {
+                                        Ok(expression[0].to_owned())
+                                    } else {
+                                        Ok(Expr::Boolean(false))
+                                    }
+                                }
+                                _ => Err(InterpError::ArgumentError)
+                            }
+                        }
+                        _ => Err(InterpError::ParseError("Clause should have a list".to_string()))
                     }
                 } else if let Some(arr) = obj.get("Def") {
                     match Expr::eval(arr, env)? {
@@ -129,6 +153,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Integer(val) => write!(fmt, "{}", val),
+            Expr::Boolean(val) => write!(fmt, "{}", val),
             Expr::String(val) => write!(fmt, "{}", val),
             Expr::Symbol(val) => write!(fmt, "{}", val),
             Expr::List(list) => write!(fmt, "{:#?}", list),

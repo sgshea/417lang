@@ -32,7 +32,7 @@ fi
 
 check-for gawk
 
-if [[ ! -r ./src* ]]; then
+if [[ ! -r ./interpreter/src* ]]; then
     echo "Missing interpreter source code!"
     allpassed=0
 fi
