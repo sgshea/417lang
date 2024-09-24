@@ -1,9 +1,8 @@
-mod reader;
 mod interpreter;
 mod environment;
 mod functions;
 
-use std::error::Error;
+use std::{error::Error, io};
 
 use environment::Environment;
 use interpreter::interpret;
@@ -12,9 +11,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(feature = "parser")]
     {
-        use std::{env, io};
         use parser::parse;
-        let args: Vec<String> = env::args().collect();
+
         let input = io::read_to_string(io::stdin());
         let ast = parse(&input.expect("Error reading input."));
         let mut env = Environment::default_environment();
@@ -26,7 +24,19 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(not(feature = "parser"))]
     {
-        let input = reader::read_stdin();
+        use serde_json::Value;
+        use interpreter::InterpError;
+        let input = match serde_json::from_reader(io::stdin()) {
+            Err(e) => {
+                // We don't want to error on empty input
+                if e.is_eof() {
+                    Ok(Value::String("".to_string()))
+                } else {
+                    Err(InterpError::ParseError(e.to_string()))
+                }
+            }
+            Ok(ok) => Ok(ok),
+        };
         // Initialize the environment
         let mut env = Environment::default_environment();
 
