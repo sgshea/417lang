@@ -1,7 +1,6 @@
 use std::{error::Error, fmt};
 
 /// Error types for all errors we may encounter in the interpreter
-/// Prefer wrapping already existing error types
 #[derive(Debug)]
 pub enum InterpError {
     // General parsing error

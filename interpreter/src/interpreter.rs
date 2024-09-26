@@ -111,10 +111,17 @@ impl Expr {
                             {
                                 // Splits the condition and expression away
                                 let [condition, expr] = clause.as_slice() else {
-                                    todo!()
+                                    return Err(InterpError::ParseError { message: "Clause did not contain both a condition and expression.".to_string() })
                                 };
-                                if Expr::eval(condition, env)? == Expr::Boolean(true) {
-                                    return Expr::eval(expr, env);
+                                // Store condition result
+                                let condition = Expr::eval(condition, env)?;
+                                // If it is a boolean that is true, we evaluate the expression
+                                if let Expr::Boolean(b) = condition {
+                                    if b {
+                                        return Expr::eval(expr, env);
+                                    }
+                                } else {
+                                    return Err(InterpError::TypeError { expected: "bool".to_string(), found: condition.to_string() })
                                 }
                                 continue;
                             }
