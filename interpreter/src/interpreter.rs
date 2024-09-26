@@ -1,4 +1,4 @@
-use std::fmt::{self};
+use std::fmt;
 
 use serde_json::Value;
 
@@ -10,7 +10,7 @@ pub enum Expr {
     // Integer value
     Integer(i64),
     // Boolean
-    Boolean(bool),
+    Boolean(bool), // true, false
     // String value
     String(String),
     // Symbol value
@@ -36,9 +36,7 @@ impl Expr {
                     }
                 };
             }
-            Value::Bool(bool) => {
-                Ok(Expr::Boolean(*bool))
-            }
+            Value::Bool(bool) => Ok(Expr::Boolean(*bool)),
             Value::String(string) => {
                 // Turn a string into a Expr::String
                 return Ok(Expr::String(string.to_string()));
@@ -59,65 +57,93 @@ impl Expr {
                     }
                 } else if let Some(key) = obj.get("Block") {
                     // Processes block
-                    Expr::eval(key, env)
+                    // Last expression is the return value
+                    match Expr::eval(key, env)? {
+                        Expr::List(list) => {
+                            // Return false for empty block
+                            if list.is_empty() {
+                                Ok(Expr::Boolean(false))
+                            } else {
+                                Ok(list.last().expect("Block should not be empty!").clone())
+                            }
+                        }
+                        _ => Err(InterpError::ArgumentError), //TODO: new error type
+                    }
                 } else if let Some(arr) = obj.get("Application") {
                     match Expr::eval(arr, env)? {
                         Expr::List(list) => {
                             let (first, rest) =
                                 list.split_first().ok_or(InterpError::ArgumentError)?;
                             match first {
-                                Expr::Function(func) => match func {
-                                    Function::RFunc { name: _name, func } => func(rest),
-                                },
+                                Expr::Function(func) => {
+                                    match func {
+                                        Function::RFunc { name: _name, func } => func(rest),
+                                        Function::UFunc {
+                                            name: _name,
+                                            args,
+                                            func,
+                                        } => {
+                                            // Create a local environment, binding arguments
+                                            // Pair together the rest slice to args
+                                            env.bind(
+                                                args.into_iter()
+                                                    .zip(rest.into_iter())
+                                                    .collect::<Vec<(&String, &Expr)>>(),
+                                            );
+                                            let res = Self::eval(func, env);
+                                            env.pop_top_env();
+                                            res
+                                        }
+                                    }
+                                }
                                 _ => Err(InterpError::ArgumentError),
                             }
                         }
                         _ => Err(InterpError::ArgumentError),
                     }
                 } else if let Some(arr) = obj.get("Cond") {
-                    Expr::eval(arr, env)
-                } else if let Some(arr) = obj.get("Clause") {
-                    match Expr::eval(arr, env)? {
-                        Expr::List(list) => {
-                            let (condition, expression) = list.split_at(1);
-                            match condition[0] {
-                                Expr::Boolean(b) => {
-                                    if b {
-                                        Ok(expression[0].to_owned())
-                                    } else {
-                                        Ok(Expr::Boolean(false))
-                                    }
+                    if let Value::Array(arr) = arr {
+                        // Expect "Clause"
+                        for statement in arr {
+                            if let Value::Array(clause) =
+                                statement.get("Clause").expect("Expect \"Clause\"")
+                            {
+                                let [condition, expr] = clause.as_slice() else {
+                                    todo!()
+                                };
+                                if Expr::eval(condition, env)? == Expr::Boolean(true) {
+                                    return Expr::eval(expr, env);
                                 }
-                                _ => Err(InterpError::ArgumentError)
+                                continue;
                             }
                         }
-                        _ => Err(InterpError::ParseError("Clause should have a list".to_string()))
                     }
-                } else if let Some(arr) = obj.get("Def") {
-                    match Expr::eval(arr, env)? {
-                        Expr::List(list) => {
-                            let (first, rest) =
-                                list.split_first().ok_or(InterpError::ArgumentError)?;
-                            match first {
-                                Expr::Symbol(symbol) => {
-                                    // Bind to a list if the rest is multiple, else to the only other expr
-                                    if rest.len() > 1 {
-                                        env.bind(
-                                            &symbol,
-                                            Expr::List(rest.into_iter().cloned().collect()),
-                                        )
-                                    } else {
-                                        env.bind(
-                                            &symbol,
-                                            rest.last().expect("Should only be one").clone(),
-                                        )
-                                    }
-                                }
-                                _ => Err(InterpError::ArgumentError),
-                            }
-                        }
-                        _ => Err(InterpError::ArgumentError),
-                    }
+
+                    Ok(Expr::Boolean(false))
+                } else if let Some(_arr) = obj.get("Def") {
+                    // match Expr::eval(arr, env)? {
+                    //     Expr::List(list) => {
+                    //         let (first, rest) =
+                    //             list.split_first().ok_or(InterpError::ArgumentError)?;
+                    //         match first {
+                    //             Expr::Symbol(symbol) => {
+                    //                 // Bind to a list if the rest is multiple, else to the only other expr
+                    //                 if rest.len() > 1 {
+                    //                     env.bind(
+                    //                         (&symbol, rest.into_iter().cloned().collect())
+                    //                     )
+                    //                 } else {
+                    //                     env.bind(
+                    //                         &symbol,
+                    //                         rest.last().expect("Should only be one").clone(),
+                    //                     )
+                    //                 }
+                    //             }
+                    //             _ => Err(InterpError::ArgumentError),
+                    //         }
+                    //     }
+                    //     _ => Err(InterpError::ArgumentError),
+                    todo!()
                 } else {
                     Err(InterpError::ParseError(format!(
                         "Found JSON Object but not a known binding"
@@ -159,6 +185,11 @@ impl fmt::Display for Expr {
             Expr::List(list) => write!(fmt, "{:#?}", list),
             Expr::Function(func) => match func {
                 Function::RFunc { name, func: _ } => write!(fmt, "function: {}", name),
+                Function::UFunc {
+                    name,
+                    args: _,
+                    func: _,
+                } => write!(fmt, "function: {}", name),
             },
         }
     }
@@ -215,8 +246,14 @@ mod tests {
     #[test]
     fn parse_valid_integer() -> Result<(), InterpError> {
         let mut env = Environment::default_environment();
-        assert_eq!(Expr::Integer(12), Expr::eval(&serde_json::from_str("12").unwrap(), &mut env)?);
-        assert_eq!(Expr::Integer(-500), Expr::eval(&serde_json::from_str("-500").unwrap(), &mut env)?);
+        assert_eq!(
+            Expr::Integer(12),
+            Expr::eval(&serde_json::from_str("12").unwrap(), &mut env)?
+        );
+        assert_eq!(
+            Expr::Integer(-500),
+            Expr::eval(&serde_json::from_str("-500").unwrap(), &mut env)?
+        );
 
         Ok(())
     }
@@ -228,8 +265,16 @@ mod tests {
         let big_num = i64::MAX as u64 + 10;
         // (Creating a string version manually less than i64::MIN)
         let small_num = "-".to_string() + &big_num.to_string();
-        assert!(Expr::eval(&serde_json::from_str(&big_num.to_string()).unwrap(), &mut env).is_err_and(|e| matches!(e, InterpError::ParseError(_))));
-        assert!(Expr::eval(&serde_json::from_str(&small_num.to_string()).unwrap(), &mut env).is_err_and(|e| matches!(e, InterpError::ParseError(_))));
+        assert!(Expr::eval(
+            &serde_json::from_str(&big_num.to_string()).unwrap(),
+            &mut env
+        )
+        .is_err_and(|e| matches!(e, InterpError::ParseError(_))));
+        assert!(Expr::eval(
+            &serde_json::from_str(&small_num.to_string()).unwrap(),
+            &mut env
+        )
+        .is_err_and(|e| matches!(e, InterpError::ParseError(_))));
 
         Ok(())
     }
@@ -237,8 +282,14 @@ mod tests {
     #[test]
     fn parse_valid_string() -> Result<(), InterpError> {
         let mut env = Environment::default_environment();
-        assert_eq!(Expr::String("rust".to_string()), Expr::eval(&serde_json::from_str("\"rust\"").unwrap(), &mut env)?);
-        assert_eq!(Expr::String("🦀".to_string()), Expr::eval(&serde_json::from_str("\"🦀\"").unwrap(), &mut env)?);
+        assert_eq!(
+            Expr::String("rust".to_string()),
+            Expr::eval(&serde_json::from_str("\"rust\"").unwrap(), &mut env)?
+        );
+        assert_eq!(
+            Expr::String("🦀".to_string()),
+            Expr::eval(&serde_json::from_str("\"🦀\"").unwrap(), &mut env)?
+        );
 
         Ok(())
     }

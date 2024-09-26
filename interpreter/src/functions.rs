@@ -1,12 +1,19 @@
+use serde_json::Value;
+
 use crate::interpreter::{exprs_into_i64, Expr, InterpError};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Function {
-    // Will eventually have another variant for functions created in the language
     // Internal Rust function (holds a function pointer)
-    RFunc{
+    RFunc {
         name: String,
         func: fn(&[Expr]) -> Result<Expr, InterpError>,
+    },
+    // User function defined in the language. It has a name and evaluates to an expression.
+    UFunc {
+        name: String,
+        args: Vec<String>,
+        func: Value,
     },
 }
 
@@ -22,8 +29,45 @@ pub fn add(args: &[Expr]) -> Result<Expr, InterpError> {
 pub fn sub(args: &[Expr]) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(
-        ints.into_iter().reduce(|first, x| {
-            first - x
-        }).unwrap_or(0)
+        ints.into_iter().reduce(|first, x| first - x).unwrap_or(0),
     ))
+}
+
+pub fn zero(args: &[Expr]) -> Result<Expr, InterpError> {
+    let int = exprs_into_i64(args)?;
+    let bool = int[0] == 0;
+    Ok(Expr::Boolean(bool))
+}
+
+pub fn eq(args: &[Expr]) -> Result<Expr, InterpError> {
+    match args.is_empty() {
+        false => {
+            let first = args.first().expect("Was not empty in previous check");
+            Ok(Expr::Boolean(args.iter().all(|a| a.eq(first))))
+        }
+        true => Ok(Expr::Boolean(false)),
+    }
+}
+
+pub fn print(args: &[Expr]) -> Result<Expr, InterpError> {
+    for arg in args {
+        print!("{}", arg);
+    }
+
+    Ok(Expr::Boolean(true))
+}
+
+pub fn println(args: &[Expr]) -> Result<Expr, InterpError> {
+    for arg in args {
+        println!("{}", arg);
+    }
+
+    Ok(Expr::Boolean(true))
+}
+
+pub fn dbg(args: &[Expr]) -> Result<Expr, InterpError> {
+    for arg in args {
+        dbg!(arg);
+    }
+    Ok(Expr::Boolean(true))
 }
