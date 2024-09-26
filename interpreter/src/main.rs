@@ -1,5 +1,6 @@
 mod interpreter;
 mod environment;
+mod error;
 mod functions;
 
 use std::{error::Error, io};
@@ -25,14 +26,14 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(not(feature = "parser"))]
     {
         use serde_json::Value;
-        use interpreter::InterpError;
+        use error::InterpError;
         let input = match serde_json::from_reader(io::stdin()) {
             Err(e) => {
                 // We don't want to error on empty input
                 if e.is_eof() {
                     Ok(Value::String("".to_string()))
                 } else {
-                    Err(InterpError::ParseError(e.to_string()))
+                    Err(InterpError::ParseError { message: e.to_string() })
                 }
             }
             Ok(ok) => Ok(ok),

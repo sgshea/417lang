@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::interpreter::{exprs_into_i64, Expr, InterpError};
+use crate::{error::InterpError, interpreter::{exprs_into_i64, Expr}};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Function {
