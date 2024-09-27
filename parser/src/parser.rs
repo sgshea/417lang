@@ -43,6 +43,7 @@ impl<'a> Parser<'a> {
         let mut expr = match self.current_token() {
             Token::Identifier(_) | Token::Integer(_) | Token::String(_) => self.parse_atom(),
             Token::Keyword(_) => self.parse_form(),
+            Token::OpenBrace => self.parse_block(),
             _ => panic!("Unexpected token: {:?}", self.current_token()),
         };
     
@@ -60,9 +61,9 @@ impl<'a> Parser<'a> {
             Token::Keyword(kw) => {
                 match kw {
                     Keyword::Def => self.parse_definition(),
+                    Keyword::Let => self.parse_let(),
                     Keyword::Lambda => self.parse_lambda(),
                     Keyword::Cond => self.parse_cond(),
-                    _ => panic!("Unexpected form: {:?}", self.current_token()),
                 }
             }
             _ => panic!("Unexpected form: {:?}", self.current_token()),
@@ -161,17 +162,20 @@ impl<'a> Parser<'a> {
         let mut exps = vec![];
         while !self.consume(&Token::CloseBrace) { // Expect '}' to end
             exps.push(self.parse_exp());
+            if self.consume(&Token::Semicolon) {
+                continue;
+            }
         }
         json!({ "Block": exps })
     }
 
-    // // LET := 'let' IDENTIFIER EXP
-    // fn parse_let(&mut self) -> Value {
-    //     self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
-    //     let identifier = self.parse_atom();
-    //     let exp = self.parse_exp();
-    //     json!({ "Let": [identifier, exp] })
-    // }
+    // LET := 'let' IDENTIFIER EXP
+    fn parse_let(&mut self) -> Value {
+        self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
+        let identifier = self.parse_atom();
+        let exp = self.parse_exp();
+        json!({ "Let": [identifier, exp] })
+    }
 
     // DEFINITION := 'def' IDENTIFIER EXP
     fn parse_definition(&mut self) -> Value {

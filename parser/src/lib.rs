@@ -30,24 +30,36 @@ mod tests {
     #[test]
     fn factorial() {
         let input = r#"
-        // Example Factorial program from original parser
-        def fact λ(n) {
-            cond 
-                (zero?(n) => 1) 
-                (true => mul(n, fact(sub(n, 1))))
+        // Factorial
+        def fact λ(n)
+        {
+        cond 
+            (zero?(n) => 1) 
+            (true => mul(n, fact(sub(n, 1))))
         }
+        // And there can be comments at the end
         "#;
 
         let output = r#"
-        {"Def":[{"Identifier": "fact"},
-        {"Lambda":[{"Parameters":[{"Identifier": "n"}]},
-        {"Block":[{"Cond":[{"Clause":[{"Application":[{"Identifier": "zero?"},
-        {"Identifier": "n"}]},1]},{"Clause":[{"Identifier": "true"},
-        {"Application":[{"Identifier": "mul"},{"Identifier": "n"},
-        {"Application":[{"Identifier": "fact"},
-        {"Application":[{"Identifier": "sub"},
-        {"Identifier": "n"},1]}]}]}]}]}]}]}]}
+        {"Def":[{"Identifier": "fact"},{"Lambda":[{"Parameters":[{"Identifier": "n"}]},{"Block":[{"Cond":[{"Clause":[{"Application":[{"Identifier": "zero?"},{"Identifier": "n"}]},1]},{"Clause":[{"Identifier": "true"},{"Application":[{"Identifier": "mul"},{"Identifier": "n"},{"Application":[{"Identifier": "fact"},{"Application":[{"Identifier": "sub"},{"Identifier": "n"},1]}]}]}]}]}]}]}]}
         "#;
+        let output_json: Value = serde_json::from_str(output).expect("should be valid json");
+
+        let ast = parse(input);
+        println!("{}", serde_json::to_string_pretty(&ast).unwrap());
+        println!("{}", serde_json::to_string_pretty(&output_json).unwrap());
+        assert_eq!(ast, output_json);
+    }
+
+    #[test]
+    fn defs() {
+        let input = r#"
+        {def foo 1; let bar 2; def baz 3}
+        "#;
+        let output = r#"
+        {"Block":[{"Def":[{"Identifier": "foo"},1]},{"Let":[{"Identifier": "bar"},2]},{"Def":[{"Identifier": "baz"},3]}]}
+        "#;
+
         let output_json: Value = serde_json::from_str(output).expect("should be valid json");
 
         let ast = parse(input);
