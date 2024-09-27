@@ -1,11 +1,27 @@
 #!/bin/bash
 
 # Default command
-command="cargo run -p interpreter --release"
+command=""
 
-# Check if "-p" flag is present
-if [[ "$#" -gt 0 && "$1" == "-p" ]]; then
-  command="cargo run -p interpreter --release --features "parser""
+if [[ "$#" -gt 0 ]]; then
+  case "$1" in
+    "-p")
+      command="cargo run -p parser --release"
+      ;;
+    "-a")
+      command="cargo run -p interpreter --release --features 'parser'"
+      ;;
+    "-t")
+      command="cargo test --release"
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+else
+  # Defualt command
+  command="cargo run -p interpreter --release"
 fi
 
 # Execute the command

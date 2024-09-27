@@ -15,7 +15,8 @@ The custom parser is integrated into the interpreter using the `"parser"` featur
 
 The following command runs the interpreter with this feature, allowing it to take in the raw program.
 `cargo run -p interpreter --release --features "parser"`
-- Can use `run.sh -p` as a shortcut
+- Can use `run.sh -a` as a shortcut
 
+The parser can be run standalone using `run.sh -p`
 ## Dependencies
 `serde` and `serde_json`: JSON parsing
