@@ -9,7 +9,7 @@ if [[ "$#" -gt 0 ]]; then
       command="cargo run -p parser --release"
       ;;
     "-a")
-      command="cargo run -p interpreter --release --features 'parser'"
+      command="cargo run -p interpreter --release --features "parser""
       ;;
     "-t")
       command="cargo test --release"
