@@ -91,10 +91,14 @@ pub fn function_application(
             match func {
                 Function::RFunc { name: _name, func } => return func(rest),
                 Function::UFunc {
-                    name: _name,
+                    name,
                     args,
                     func,
                 } => {
+                    if args.len() != rest.len() {
+                        return Err(InterpError::ArgumentError { func: name.to_string(), expected: args.len(), got: rest.len() })
+                    }
+
                     return parse_block_with_bindings(
                         func,
                         env,

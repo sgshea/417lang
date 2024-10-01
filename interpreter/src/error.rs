@@ -22,10 +22,6 @@ pub enum InterpError {
         expected: String,
         found: String,
     },
-    // Error for general runtime errors (ex: divide by zero)
-    RuntimeError {
-        message: String,
-    },
 }
 
 impl fmt::Display for InterpError {
@@ -42,9 +38,6 @@ impl fmt::Display for InterpError {
             }
             InterpError::TypeError { expected, found } => {
                 write!(f, "Type error: expected {}, found {}", expected, found)
-            }
-            InterpError::RuntimeError { message } => {
-                write!(f, "Runtime error: {}", message)
             }
         }
     }
