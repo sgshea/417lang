@@ -3,13 +3,13 @@ mod error;
 mod functions;
 mod interpreter;
 
-use std::{error::Error, io};
+use std::io;
 
 use environment::Environment;
 use error::InterpError;
 use interpreter::interpret;
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() {
     #[cfg(feature = "parser")]
     {
         use parser::parse;
@@ -18,10 +18,12 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         let ast = parse(&input.expect("Error reading input."));
         let mut env = Environment::default_environment();
         match interpret(ast, &mut env) {
-            Err(_) => Err(Box::new(InterpError::ParseError { message: "Unable to parse JSON into interpreter.".to_string() })),
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
             Ok(expr) => {
                 println!("{}", expr);
-                Ok(())
             }
         }
     }
@@ -33,12 +35,22 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
         // Interpret input
         match serde_json::from_reader(io::stdin()) {
-            Err(_) => Err(Box::new(InterpError::ParseError { message: "Unable to parse JSON into interpreter.".to_string() })),
+            Err(_) => {
+                eprintln!(
+                    "{}",
+                    InterpError::ParseError {
+                        message: "Unable to parse JSON into interpreter.".to_string()
+                    }
+                );
+                std::process::exit(1);
+            }
             Ok(val) => match interpret(val, &mut env) {
-                Err(e) => Err(Box::new(e)),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
                 Ok(expr) => {
                     println!("{}", expr);
-                    Ok(())
                 }
             },
         }

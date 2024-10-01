@@ -136,6 +136,12 @@ pub fn sub(args: &[Expr]) -> Result<Expr, InterpError> {
     ))
 }
 
+// Takes in any amount of arguments and multiplys to the first argument
+pub fn mul(args: &[Expr]) -> Result<Expr, InterpError> {
+    let ints = exprs_into_i64(args)?;
+    Ok(Expr::Integer(ints.into_iter().product()))
+}
+
 pub fn zero(args: &[Expr]) -> Result<Expr, InterpError> {
     let int = exprs_into_i64(args)?;
     let bool = int[0] == 0;

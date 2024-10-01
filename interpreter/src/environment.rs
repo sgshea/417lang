@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::functions::{add, dbg, eq, print, println, sub, zero};
+use crate::functions::{add, dbg, eq, mul, print, println, sub, zero};
 use crate::interpreter::Expr;
 use crate::functions::Function::RFunc;
 use crate::error::InterpError;
@@ -25,6 +25,7 @@ impl Environment {
         env.add_builtin_func("=", eq);
         env.add_builtin_func("add", add);
         env.add_builtin_func("sub", sub);
+        env.add_builtin_func("mul", mul);
         env.add_builtin_func("zero?", zero);
         env.add_builtin("x", Expr::Integer(10));
         env.add_builtin("v", Expr::Integer(5));
