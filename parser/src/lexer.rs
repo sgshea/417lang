@@ -78,8 +78,6 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace_and_comments();
 
         match self.peek_char() {
-            Some(c) if is_id_start(c) => self.lex_identifier_or_keyword(),
-            Some(c) if c.is_digit(10) || c == '+' || c == '-' => self.lex_integer(),
             Some('"') => self.lex_string(),
             Some('(') => {
                 self.next_char();
@@ -106,6 +104,7 @@ impl<'a> Lexer<'a> {
                 Token::Semicolon
             }
             Some('=') => {
+                // Make sure we check for '=>' before we try to lex for identifier or keyword as '=' is accepted for that
                 let mut forward = self.input.clone();
                 forward.next();
                 if forward.next() == Some('>') {
@@ -113,9 +112,12 @@ impl<'a> Lexer<'a> {
                     self.input = forward;
                     Token::Arrow
                 } else {
-                    panic!("Unexpected token: '='");
+                    // We can assume it is an identifer or keyword now
+                    self.lex_identifier_or_keyword()
                 }
             }
+            Some(c) if is_id_start(c) => self.lex_identifier_or_keyword(),
+            Some(c) if c.is_digit(10) || c == '+' || c == '-' => self.lex_integer(),
             Some(_) => panic!("Unexpected character: {:?}", self.peek_char()),
             None => Token::EOF,
         }
@@ -215,7 +217,7 @@ impl<'a> Lexer<'a> {
 fn is_id_start(c: char) -> bool {
     // IDSTART must be a valid Unicode character, but not a digit, '+' or '-'
     is_id_char(c) && !(c.is_digit(10) || match c {
-        '+' | '-' | '=' => true,
+        '+' | '-' => true,
         _ => false
     })
 }
