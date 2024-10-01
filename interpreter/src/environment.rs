@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::functions::{add, dbg, eq, print, println, sub, zero};
 use crate::interpreter::Expr;
 use crate::functions::Function::RFunc;
+use crate::error::InterpError;
 
 /// Environment of running interpreter
 #[derive(Debug, Clone)]
@@ -14,25 +15,35 @@ pub struct Environment {
 impl Environment {
     /// Default environment of the interpreter with all builtins
     pub fn default_environment() -> Self {
-        let mut stack = HashMap::new();
-        stack.insert("x".to_string(), Expr::Integer(10));
-        stack.insert("v".to_string(), Expr::Integer(5));
-        stack.insert("i".to_string(), Expr::Integer(1));
-        stack.insert("true".to_string(), Expr::Boolean(true));
-        stack.insert("false".to_string(), Expr::Boolean(false));
-        stack.insert("eq".to_string(), Expr::Function(RFunc{name: "eq".to_string(), func: eq}));
-        stack.insert("print".to_string(), Expr::Function(RFunc{name: "print".to_string(), func: print}));
-        stack.insert("println".to_string(), Expr::Function(RFunc{name: "println".to_string(), func: println}));
-        stack.insert("dbg".to_string(), Expr::Function(RFunc{name: "dbg".to_string(), func: dbg}));
-        stack.insert("add".to_string(), Expr::Function(RFunc{name: "add".to_string(), func: add}));
-        stack.insert("sub".to_string(), Expr::Function(RFunc{name: "sub".to_string(), func: sub}));
-        stack.insert("zero?".to_string(), Expr::Function(RFunc{name: "zero?".to_string(), func: zero}));
+        let mut env = Self {
+            stack: vec![HashMap::new()]
+        };
 
-        Self {
-            stack: vec![stack],
-        }
+        env.add_builtin_func("print", print);
+        env.add_builtin_func("println", println);
+        env.add_builtin_func("dbg", dbg);
+        env.add_builtin_func("=", eq);
+        env.add_builtin_func("add", add);
+        env.add_builtin_func("sub", sub);
+        env.add_builtin_func("zero?", zero);
+        env.add_builtin("x", Expr::Integer(10));
+        env.add_builtin("v", Expr::Integer(5));
+        env.add_builtin("i", Expr::Integer(1));
+        env.add_builtin("true", Expr::Boolean(true));
+        env.add_builtin("false", Expr::Boolean(false));
+
+        env
     }
 
+    /// Adds builtin item
+    fn add_builtin(&mut self, name: &str, expr: Expr) {
+        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), expr);
+    }
+
+    /// Adds function to builtins (bottom of stack)
+    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr]) -> Result<Expr, InterpError>) {
+        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(RFunc { name: name.to_string(), func }));
+    }
 
     /// Bind a group of bindings to expressions that are passed in as a tuple pair
     /// Adds to a new local environment

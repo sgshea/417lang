@@ -44,7 +44,9 @@ impl Expr {
                         if let Some(val) = env.lookup(str) {
                             Ok(val)
                         } else {
-                            Err(InterpError::UndefinedError { symbol: str.to_string() })
+                            Err(InterpError::UndefinedError {
+                                symbol: str.to_string(),
+                            })
                         }
                     } else {
                         Err(InterpError::ParseError {
@@ -111,7 +113,7 @@ impl Expr {
                             {
                                 // Splits the condition and expression away
                                 let [condition, expr] = clause.as_slice() else {
-                                    return Err(InterpError::ParseError { message: "Clause did not contain both a condition and expression.".to_string() })
+                                    return Err(InterpError::ParseError { message: "Clause did not contain both a condition and expression.".to_string() });
                                 };
                                 // Store condition result
                                 let condition = Expr::eval(condition, env)?;
@@ -121,7 +123,10 @@ impl Expr {
                                         return Expr::eval(expr, env);
                                     }
                                 } else {
-                                    return Err(InterpError::TypeError { expected: "bool".to_string(), found: condition.to_string() })
+                                    return Err(InterpError::TypeError {
+                                        expected: "bool".to_string(),
+                                        found: condition.to_string(),
+                                    });
                                 }
                                 continue;
                             }
@@ -189,14 +194,8 @@ pub fn exprs_into_i64(exprs: &[Expr]) -> Result<Vec<i64>, InterpError> {
         .collect::<Result<Vec<i64>, InterpError>>()
 }
 
-pub fn interpret(val: serde_json::Value, env: &mut Environment) -> Result<(), InterpError> {
-    match Expr::eval(&val, env) {
-        Err(e) => Err(e),
-        Ok(res) => {
-            println!("{}", res);
-            Ok(())
-        }
-    }
+pub fn interpret(val: serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+    Expr::eval(&val, env)
 }
 
 #[cfg(test)]
