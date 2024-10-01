@@ -21,7 +21,7 @@ if [[ "$#" -gt 0 ]]; then
   esac
 else
   # Defualt command
-  command="cargo run -p interpreter --release"
+  command="cargo run -q -p interpreter --release"
 fi
 
 # Execute the command
