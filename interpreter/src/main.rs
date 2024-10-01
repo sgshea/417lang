@@ -6,6 +6,7 @@ mod interpreter;
 use std::{error::Error, io};
 
 use environment::Environment;
+use error::InterpError;
 use interpreter::interpret;
 
 pub fn main() -> Result<(), Box<dyn Error>> {
@@ -17,7 +18,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         let ast = parse(&input.expect("Error reading input."));
         let mut env = Environment::default_environment();
         match interpret(ast, &mut env) {
-            Err(e) => Err(Box::new(e)),
+            Err(_) => Err(Box::new(InterpError::ParseError { message: "Unable to parse JSON into interpreter.".to_string() })),
             Ok(expr) => {
                 println!("{}", expr);
                 Ok(())
@@ -27,27 +28,12 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(not(feature = "parser"))]
     {
-        use error::InterpError;
-        use serde_json::Value;
-        let input = match serde_json::from_reader(io::stdin()) {
-            Err(e) => {
-                // We don't want to error on empty input
-                if e.is_eof() {
-                    Ok(Value::String("".to_string()))
-                } else {
-                    Err(InterpError::ParseError {
-                        message: e.to_string(),
-                    })
-                }
-            }
-            Ok(ok) => Ok(ok),
-        };
         // Initialize the environment
         let mut env = Environment::default_environment();
 
         // Interpret input
-        match input {
-            Err(e) => Err(Box::new(e)),
+        match serde_json::from_reader(io::stdin()) {
+            Err(_) => Err(Box::new(InterpError::ParseError { message: "Unable to parse JSON into interpreter.".to_string() })),
             Ok(val) => match interpret(val, &mut env) {
                 Err(e) => Err(Box::new(e)),
                 Ok(expr) => {
@@ -61,6 +47,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
 /// Macro to use the interpreter & parser together
 #[cfg(feature = "parser")]
+#[allow(unused_macros)]
 macro_rules! language {
     ($($input:tt)*) => {{
         let mut env = Environment::default_environment();
