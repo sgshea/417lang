@@ -1,8 +1,12 @@
 use std::fmt;
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use crate::{environment::Environment, error::InterpError, functions::{parse_anonymous_function, Function}};
+use crate::{
+    environment::Environment,
+    error::InterpError,
+    functions::{function_application, parse_anonymous_function, Function},
+};
 
 /// All the types of the language
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -22,134 +26,23 @@ pub enum Expr {
 impl Expr {
     pub fn eval(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
         match val {
-            Value::Number(ref num) => {
-                // Turn a JSON number into an Expr::Integer
-                match num.as_i64() {
-                    Some(n) => return Ok(Expr::Integer(n)),
-                    None => {
-                        return Err(InterpError::ParseError {
-                            message: format!("{} is not a valid i64.", num),
-                        });
-                    }
-                };
-            }
+            Value::Number(num) => num
+                .as_i64()
+                .ok_or_else(|| InterpError::TypeError {
+                    expected: "i64".to_string(),
+                    found: num.to_string(),
+                })
+                .map(|i| Expr::Integer(i)),
             Value::Bool(bool) => Ok(Expr::Boolean(*bool)),
             Value::String(string) => {
-                // Turn a string into a Expr::String
                 return Ok(Expr::String(string.to_string()));
             }
-            Value::Object(obj) => {
-                if let Some(binding) = obj.get("Identifier") {
-                    if let Value::String(str) = binding {
-                        if let Some(val) = env.lookup(str) {
-                            Ok(val)
-                        } else {
-                            Err(InterpError::UndefinedError {
-                                symbol: str.to_string(),
-                            })
-                        }
-                    } else {
-                        Err(InterpError::ParseError {
-                            message: "Expected string to lookup identifier.".to_string(),
-                        })
-                    }
-                } else if let Some(key) = obj.get("Block") {
-                    // Processes block
-                    // Last expression is the return value
-                    if let Expr::List(list) = Expr::eval(key, env)? {
-                        // Return false for empty block
-                        if let Some(last) = list.last() {
-                            Ok(last.clone())
-                        } else {
-                            Ok(Expr::Boolean(false))
-                        }
-                    } else {
-                        Err(InterpError::ParseError {
-                            message: "Expected expressions within block.".to_string(),
-                        })
-                    }
-                } else if let Some(lambda) = obj.get("Lambda") {
-                    parse_anonymous_function(lambda)
-                } else if let Some(arr) = obj.get("Application") {
-                    if let Expr::List(list) = Expr::eval(arr, env)? {
-                        let (first, rest) = list.split_first().ok_or(InterpError::ParseError {
-                            message: "Function application on nothing.".to_string(),
-                        })?;
-                        if let Expr::Function(func) = first {
-                            match func {
-                                Function::RFunc { name: _name, func } => return func(rest),
-                                Function::UFunc {
-                                    name: _name,
-                                    args,
-                                    func,
-                                } => {
-                                    // Create a local environment, binding arguments
-                                    // Pair together the rest slice to args
-                                    env.bind(
-                                        args.into_iter()
-                                            .zip(rest.into_iter())
-                                            .collect::<Vec<(&String, &Expr)>>(),
-                                    );
-                                    let res = Self::eval(func, env);
-                                    env.pop_top_env();
-                                    return res;
-                                }
-                            }
-                        } else {
-                            return Err(InterpError::TypeError {
-                                expected: "function".to_string(),
-                                found: first.to_string(),
-                            });
-                        }
-                    }
-                    Err(InterpError::ParseError {
-                        message: "Expected function and arguments.".to_string(),
-                    })
-                } else if let Some(arr) = obj.get("Cond") {
-                    if let Value::Array(arr) = arr {
-                        // Expect "Clause"
-                        // Returns the result of the first expression where it's condition was true
-                        for statement in arr {
-                            if let Value::Array(clause) =
-                                statement.get("Clause").expect("Expect \"Clause\"")
-                            {
-                                // Splits the condition and expression away
-                                let [condition, expr] = clause.as_slice() else {
-                                    return Err(InterpError::ParseError { message: "Clause did not contain both a condition and expression.".to_string() });
-                                };
-                                // Store condition result
-                                let condition = Expr::eval(condition, env)?;
-                                // If it is a boolean that is true, we evaluate the expression
-                                if let Expr::Boolean(b) = condition {
-                                    if b {
-                                        return Expr::eval(expr, env);
-                                    }
-                                } else {
-                                    return Err(InterpError::TypeError {
-                                        expected: "bool".to_string(),
-                                        found: condition.to_string(),
-                                    });
-                                }
-                                continue;
-                            }
-                        }
-                    }
-
-                    Ok(Expr::Boolean(false))
-                } else if let Some(_arr) = obj.get("Def") {
-                    todo!()
-                } else {
-                    Err(InterpError::ParseError { message: format!("Found JSON Object in AST but it does not contain a known keyword: {:?}", obj) })
-                }
-            }
-            Value::Array(arr) => {
-                // Convert a vector of JSON values into an Expr::List
-                Ok(Expr::List(
-                    arr.into_iter()
-                        .map(|val| Expr::eval(val, env))
-                        .collect::<Result<Vec<Expr>, InterpError>>()?,
-                ))
-            }
+            Value::Array(arr) => Ok(Expr::List(
+                arr.into_iter()
+                    .map(|val| Expr::eval(val, env))
+                    .collect::<Result<Vec<Expr>, InterpError>>()?,
+            )),
+            Value::Object(obj) => parse_object(obj, env),
             _ => Err(InterpError::ParseError {
                 message: format!(
                     "{} is not an implemented type! It is of JSON type {:?}",
@@ -168,6 +61,115 @@ impl Expr {
             }),
         }
     }
+}
+
+/// Parse a JSON object, looking for the keys that correspond to certain behaviors
+fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr, InterpError> {
+    // First see if there is an identifier
+    if let Some(binding) = obj.get("Identifier").and_then(|val| val.as_str()) {
+        return env
+            .lookup(binding)
+            .ok_or_else(|| InterpError::UndefinedError {
+                symbol: binding.to_string(),
+            });
+    }
+
+    // Handle blocks
+    if let Some(key) = obj.get("Block") {
+        return parse_block(key, env)
+    }
+
+    // Parse a function definition
+    if let Some(lambda) = obj.get("Lambda") {
+        return parse_anonymous_function(lambda);
+    }
+
+    // Apply a function
+    if let Some(arr) = obj.get("Application") {
+        return function_application(arr, env);
+    }
+
+    // Handle conditional clauses
+    if let Some(arr) = obj.get("Cond") {
+        if let Value::Array(arr) = arr {
+            // Expect "Clause"
+            // Returns the result of the first expression where it's condition was true
+            for statement in arr {
+                if let Value::Array(clause) = statement.get("Clause").expect("Expect \"Clause\"") {
+                    // Splits the condition and expression away
+                    let [condition, expr] = clause.as_slice() else {
+                        return Err(InterpError::ParseError {
+                            message: "Clause did not contain both a condition and expression."
+                                .to_string(),
+                        });
+                    };
+                    // Store condition result
+                    let condition = Expr::eval(condition, env)?;
+                    // If it is a boolean that is true, we evaluate the expression
+                    if let Expr::Boolean(b) = condition {
+                        if b {
+                            return Expr::eval(expr, env);
+                        }
+                    } else {
+                        return Err(InterpError::TypeError {
+                            expected: "bool".to_string(),
+                            found: condition.to_string(),
+                        });
+                    }
+                    continue;
+                }
+            }
+        }
+
+        return Ok(Expr::Boolean(false));
+    }
+
+    if let Some(_arr) = obj.get("Def") {
+        todo!()
+    }
+
+    Err(InterpError::ParseError {
+        message: format!(
+            "Found JSON Object in AST but it does not contain a known keyword: {:?}",
+            obj
+        ),
+    })
+}
+
+/// Parses a block expression, handling creating a new local environment on the environment's stack
+fn parse_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+    env.create_local_env();
+
+    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, env)? {
+        // Return false for empty block
+        Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
+    } else {
+        Err(InterpError::ParseError {
+            message: "Expected expressions within block.".to_string(),
+        })
+    };
+
+    env.pop_top_env();
+    res
+}
+
+/// Parses a block expression, handling creating a new local environment on the environment's stack
+/// Special function to evaluate the block with some initial bindings (such as a function's block with arguments)
+pub fn parse_block_with_bindings(val: &serde_json::Value, env: &mut Environment, bindings: Vec<(&String, &Expr)>) -> Result<Expr, InterpError> {
+    env.create_local_env();
+    env.bind(bindings);
+
+    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, env)? {
+        // Return false for empty block
+        Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
+    } else {
+        Err(InterpError::ParseError {
+            message: "Expected expressions within block.".to_string(),
+        })
+    };
+
+    env.pop_top_env();
+    res
 }
 
 impl fmt::Display for Expr {

@@ -46,13 +46,17 @@ impl Environment {
     }
 
     /// Bind a group of bindings to expressions that are passed in as a tuple pair
-    /// Adds to a new local environment
+    /// Adds to top environment of the stack
     pub fn bind(&mut self, pairs: Vec<(&String, &Expr)>) {
-        let mut local_env: HashMap<String, Expr> = HashMap::with_capacity(pairs.len());
+        let local_env: &mut HashMap<String, Expr> = self.stack.last_mut().expect("Environment should not be empty!");
         for (binding, expr) in pairs {
             local_env.insert(binding.to_string(), expr.clone().clone());
         }
-        self.stack.push(local_env);
+    }
+
+    /// Creates a new local environment on the top of the stack
+    pub fn create_local_env(&mut self) {
+        self.stack.push(HashMap::new());
     }
 
     /// Removes the most local environment, returining it

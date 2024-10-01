@@ -1,8 +1,9 @@
 use serde_json::Value;
 
 use crate::{
+    environment::Environment,
     error::InterpError,
-    interpreter::{exprs_into_i64, Expr},
+    interpreter::{exprs_into_i64, parse_block_with_bindings, Expr},
 };
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -44,10 +45,15 @@ pub fn parse_anonymous_function(val: &serde_json::Value) -> Result<Expr, InterpE
                 match p
                     .as_object()
                     .and_then(|obj| obj.get("Identifier"))
-                    .and_then(|i| i.as_str()) {
-                        Some(s) => Ok(s.to_string()),
-                        _ => return Err(InterpError::ParseError { message: "All parameters must be an identifier.".to_string() })
+                    .and_then(|i| i.as_str())
+                {
+                    Some(s) => Ok(s.to_string()),
+                    _ => {
+                        return Err(InterpError::ParseError {
+                            message: "All parameters must be an identifier.".to_string(),
+                        })
                     }
+                }
             })
             .collect::<Result<Vec<String>, InterpError>>()?,
         _ => {
@@ -57,15 +63,57 @@ pub fn parse_anonymous_function(val: &serde_json::Value) -> Result<Expr, InterpE
         }
     };
 
-    if !block.is_object() {
-        return Err(InterpError::ParseError { message: "Function should contain a block.".to_string() })
-    };
+    let block = block
+        .as_object()
+        .and_then(|obj| obj.get("Block"))
+        .ok_or_else(|| {
+            return InterpError::ParseError {
+                message: "Function should contain a block.".to_string(),
+            };
+        })?;
 
     Ok(Expr::Function(Function::UFunc {
         name: "Anonymous".to_string(),
         args: parameters,
         func: block.clone(),
     }))
+}
+
+pub fn function_application(
+    val: &serde_json::Value,
+    env: &mut Environment,
+) -> Result<Expr, InterpError> {
+    if let Expr::List(list) = Expr::eval(val, env)? {
+        let (first, rest) = list.split_first().ok_or(InterpError::ParseError {
+            message: "Function application on nothing.".to_string(),
+        })?;
+        if let Expr::Function(func) = first {
+            match func {
+                Function::RFunc { name: _name, func } => return func(rest),
+                Function::UFunc {
+                    name: _name,
+                    args,
+                    func,
+                } => {
+                    return parse_block_with_bindings(
+                        func,
+                        env,
+                        args.into_iter()
+                            .zip(rest.into_iter())
+                            .collect::<Vec<(&String, &Expr)>>(),
+                    )
+                }
+            }
+        } else {
+            return Err(InterpError::TypeError {
+                expected: "function".to_string(),
+                found: first.to_string(),
+            });
+        }
+    }
+    Err(InterpError::ParseError {
+        message: "Expected function and arguments.".to_string(),
+    })
 }
 
 /// BEGIN INBUILT FUNCTIONS
