@@ -232,12 +232,12 @@ mod tests {
             &serde_json::from_str(&big_num.to_string()).unwrap(),
             &mut env
         )
-        .is_err_and(|e| matches!(e, InterpError::ParseError { message: _ })));
+        .is_err_and(|e| matches!(e, InterpError::TypeError { expected: _, found: _ })));
         assert!(Expr::eval(
             &serde_json::from_str(&small_num.to_string()).unwrap(),
             &mut env
         )
-        .is_err_and(|e| matches!(e, InterpError::ParseError { message: _ })));
+        .is_err_and(|e| matches!(e, InterpError::TypeError { expected: _, found: _ })));
 
         Ok(())
     }
