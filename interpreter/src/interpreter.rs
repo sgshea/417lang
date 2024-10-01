@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde_json::Value;
 
-use crate::{environment::Environment, error::InterpError, functions::Function};
+use crate::{environment::Environment, error::InterpError, functions::{parse_anonymous_function, Function}};
 
 /// All the types of the language
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -68,6 +68,8 @@ impl Expr {
                             message: "Expected expressions within block.".to_string(),
                         })
                     }
+                } else if let Some(lambda) = obj.get("Lambda") {
+                    parse_anonymous_function(lambda)
                 } else if let Some(arr) = obj.get("Application") {
                     if let Expr::List(list) = Expr::eval(arr, env)? {
                         let (first, rest) = list.split_first().ok_or(InterpError::ParseError {
