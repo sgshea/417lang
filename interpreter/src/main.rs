@@ -6,7 +6,6 @@ mod interpreter;
 use std::io;
 
 use environment::Environment;
-use error::InterpError;
 use interpreter::interpret;
 
 pub fn main() {
@@ -30,6 +29,7 @@ pub fn main() {
 
     #[cfg(not(feature = "parser"))]
     {
+        use error::InterpError;
         // Initialize the environment
         let mut env = Environment::default_environment();
 

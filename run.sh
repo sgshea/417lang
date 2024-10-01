@@ -9,10 +9,10 @@ if [[ "$#" -gt 0 ]]; then
       command="cargo run -p parser --release"
       ;;
     "-a")
-      command="cargo run -p interpreter --release --features "parser""
+      command="cargo run -p interpreter --release -F "parser""
       ;;
     "-t")
-      command="cargo test --release"
+      command="cargo test --release -F "parser""
       ;;
     *)
       echo "Unknown argument: $1"
