@@ -2,23 +2,24 @@ use lexer::{Lexer, Token};
 use parser::Parser;
 use serde_json::Value;
 
+pub mod error;
 mod lexer;
 mod parser;
 
-pub fn parse(input: &str) -> Value {
+pub fn parse(input: &str) -> Result<Value, error::ParseError> {
     let mut lexer = Lexer::new(input);
 
     let mut tokens = vec![];
     loop {
-        let token = lexer.next_token();
-        if token == Token::EOF {
+        let token = lexer.next_token_container();
+        if token.token == Token::EOF {
             tokens.push(token);
             break;
         }
         tokens.push(token);
     }
 
-    Parser::new(&tokens).parse_program()
+    Parser::new(input, &tokens).parse_program()
 }
 
 #[cfg(test)]
@@ -45,7 +46,7 @@ mod tests {
         "#;
         let output_json: Value = serde_json::from_str(output).expect("should be valid json");
 
-        let ast = parse(input);
+        let ast = parse(input).unwrap();
         println!("{}", serde_json::to_string_pretty(&ast).unwrap());
         println!("{}", serde_json::to_string_pretty(&output_json).unwrap());
         assert_eq!(ast, output_json);
@@ -62,7 +63,7 @@ mod tests {
 
         let output_json: Value = serde_json::from_str(output).expect("should be valid json");
 
-        let ast = parse(input);
+        let ast = parse(input).unwrap();
         println!("{}", serde_json::to_string_pretty(&ast).unwrap());
         println!("{}", serde_json::to_string_pretty(&output_json).unwrap());
         assert_eq!(ast, output_json);

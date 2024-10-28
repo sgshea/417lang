@@ -1,4 +1,11 @@
-use std::{collections::HashMap, str::Chars};
+use std::{collections::HashMap, iter::Peekable, str::Chars};
+
+use crate::error::ParseError;
+
+pub trait LexToken {
+    fn token(&self) -> &Token;
+    fn source(&self) -> Option<usize>;
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -14,6 +21,34 @@ pub enum Token {
     Semicolon,
     Arrow,
     EOF,
+    Error,
+}
+
+impl LexToken for Token {
+    fn token(&self) -> &Token {
+        self
+    }
+
+    fn source(&self) -> Option<usize> {
+        None
+    }
+}
+
+// Contains a token with additional information
+// Information about where in source token is contained (for errors)
+pub struct TokenContainer {
+    pub token: Token,
+    pub source: usize,
+}
+
+impl LexToken for TokenContainer {
+    fn token(&self) -> &Token {
+        &self.token
+    }
+
+    fn source(&self) -> Option<usize> {
+        Some(self.source)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -25,9 +60,12 @@ pub enum Keyword {
 }
 
 pub struct Lexer<'a> {
-    _source: &'a str,
-    input: Chars<'a>,
+    source: &'a str,
+    input: Peekable<Chars<'a>>,
     keywords: HashMap<&'a str, Token>,
+
+    current_location: usize,
+    errors: Vec<ParseError>,
 }
 
 impl<'a> Lexer<'a> {
@@ -40,21 +78,24 @@ impl<'a> Lexer<'a> {
         keywords.insert("cond", Token::Keyword(Keyword::Cond));
 
         let lexer = Self {
-            _source: source,
-            input: source.chars(),
+            source,
+            input: source.chars().peekable(),
             keywords,
+            current_location: 0,
+            errors: vec![],
         };
         lexer
     }
 
-     // Move to the next character in the input
-     fn next_char(&mut self) {
+    // Move to the next character in the input
+    fn next_char(&mut self) {
         self.input.next();
+        self.current_location += 1;
     }
 
     // Peek the next character without consuming it
-    fn peek_char(&mut self) -> Option<char> {
-        self.input.clone().next()
+    fn peek_char(&mut self) -> Option<&char> {
+        self.input.peek()
     }
 
     // Skip all whitespace and comments
@@ -62,14 +103,21 @@ impl<'a> Lexer<'a> {
         while let Some(c) = self.peek_char() {
             if c.is_whitespace() {
                 self.next_char();
-            } else if c == '/' && self.peek_char() == Some('/') {
+            } else if *c == '/' && self.peek_char() == Some(&'/') {
                 // Skip comments until the end of the line
-                while self.peek_char() != Some('\n') {
+                while self.peek_char() != Some(&'\n') {
                     self.next_char();
                 }
             } else {
                 break;
             }
+        }
+    }
+
+    pub fn next_token_container(&mut self) -> TokenContainer {
+        TokenContainer {
+            source: self.current_location,
+            token: self.next_token(),
         }
     }
 
@@ -117,8 +165,18 @@ impl<'a> Lexer<'a> {
                 }
             }
             Some(c) if is_id_start(c) => self.lex_identifier_or_keyword(),
-            Some(c) if c.is_digit(10) || c == '+' || c == '-' => self.lex_integer(),
-            Some(_) => panic!("Unexpected character: {:?}", self.peek_char()),
+            Some(c) if c.is_digit(10) || *c == '+' || *c == '-' => self.lex_integer(),
+            Some(_) => {
+                let error = ParseError::new(
+                    "input",
+                    self.source,
+                    (self.current_location, 1)
+                );
+                self.errors.push(error);
+                // advance
+                self.next_char();
+                Token::Error
+            }
             None => Token::EOF,
         }
     }
@@ -130,7 +188,7 @@ impl<'a> Lexer<'a> {
         // First character must be valid IDSTART
         if let Some(c) = self.peek_char() {
             if is_id_start(c) {
-                identifier.push(c);
+                identifier.push(*c);
                 self.next_char();
             } else {
                 panic!("Invalid identifier start character: {:?}", c);
@@ -140,7 +198,7 @@ impl<'a> Lexer<'a> {
         // Continue consuming IDCHARs
         while let Some(c) = self.peek_char() {
             if is_id_char(c) {
-                identifier.push(c);
+                identifier.push(*c);
                 self.next_char();
             } else {
                 break;
@@ -157,14 +215,14 @@ impl<'a> Lexer<'a> {
     fn lex_integer(&mut self) -> Token {
         let mut num_str = String::new();
 
-        if self.peek_char() == Some('+') || self.peek_char() == Some('-') {
-            num_str.push(self.peek_char().unwrap());
+        if self.peek_char() == Some(&'+') || self.peek_char() == Some(&'-') {
+            num_str.push(*self.peek_char().unwrap());
             self.next_char();
         }
 
         while let Some(c) = self.peek_char() {
             if c.is_digit(10) {
-                num_str.push(c);
+                num_str.push(*c);
                 self.next_char();
             } else {
                 break;
@@ -201,7 +259,7 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 _ => {
-                    string_content.push(c);
+                    string_content.push(*c);
                     self.next_char();
                 }
             }
@@ -214,22 +272,24 @@ impl<'a> Lexer<'a> {
 // Helper functions
 
 // Check if a character is a valid IDSTART
-fn is_id_start(c: char) -> bool {
+fn is_id_start(c: &char) -> bool {
     // IDSTART must be a valid Unicode character, but not a digit, '+' or '-'
-    is_id_char(c) && !(c.is_digit(10) || match c {
-        '+' | '-' => true,
-        _ => false
-    })
+    is_id_char(c)
+        && !(c.is_digit(10)
+            || match c {
+                '+' | '-' => true,
+                _ => false,
+            })
 }
 
 // Check if a character is a valid IDCHAR
-fn is_id_char(c: char) -> bool {
+fn is_id_char(c: &char) -> bool {
     // IDCHAR is any valid UTF-8 character except for delimiters
     !(c.is_whitespace() || is_delimiter(c))
 }
 
 // Check if a character is a delimiter
-fn is_delimiter(c: char) -> bool {
+fn is_delimiter(c: &char) -> bool {
     match c {
         ' ' | '\t' | '\n' | '"' | '(' | ')' | '{' | '}' | ',' | ';' => true,
         _ => false,
