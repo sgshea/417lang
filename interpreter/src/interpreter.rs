@@ -76,7 +76,7 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
 
     // Handle blocks
     if let Some(key) = obj.get("Block") {
-        return parse_block(key, env)
+        return parse_block(key, env);
     }
 
     // Parse a function definition
@@ -124,8 +124,8 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
         return Ok(Expr::Boolean(false));
     }
 
-    if let Some(_arr) = obj.get("Def") {
-        todo!()
+    if let Some(arr) = obj.get("Let") {
+        return parse_let(arr, env);
     }
 
     Err(InterpError::ParseError {
@@ -155,7 +155,11 @@ fn parse_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, I
 
 /// Parses a block expression, handling creating a new local environment on the environment's stack
 /// Special function to evaluate the block with some initial bindings (such as a function's block with arguments)
-pub fn parse_block_with_bindings(val: &serde_json::Value, env: &mut Environment, bindings: Vec<(&String, &Expr)>) -> Result<Expr, InterpError> {
+pub fn parse_block_with_bindings(
+    val: &serde_json::Value,
+    env: &mut Environment,
+    bindings: Vec<(&String, &Expr)>,
+) -> Result<Expr, InterpError> {
     env.create_local_env();
     env.bind(bindings);
 
@@ -170,6 +174,34 @@ pub fn parse_block_with_bindings(val: &serde_json::Value, env: &mut Environment,
 
     env.pop_top_env();
     res
+}
+
+fn parse_let(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+    let [identifier, value] = match val.as_array() {
+        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
+        _ => {
+            return Err(InterpError::ParseError {
+                message: "Let expression expectes an identifier and a value to be bound."
+                    .to_string(),
+            })
+        }
+    };
+
+    let ident_name = identifier
+        .get("Identifier")
+        .and_then(|n| n.as_str())
+        .ok_or_else(|| {
+            return InterpError::ParseError {
+                message: "Expecting an identifier in let expression".to_string(),
+            };
+        })?;
+
+    let ident_val = Expr::eval(value, env)?;
+
+    // Place into our environment
+    env.bind(vec![(&ident_name.to_string(), &ident_val)]);
+
+    return Ok(ident_val);
 }
 
 impl fmt::Display for Expr {
@@ -232,12 +264,24 @@ mod tests {
             &serde_json::from_str(&big_num.to_string()).unwrap(),
             &mut env
         )
-        .is_err_and(|e| matches!(e, InterpError::TypeError { expected: _, found: _ })));
+        .is_err_and(|e| matches!(
+            e,
+            InterpError::TypeError {
+                expected: _,
+                found: _
+            }
+        )));
         assert!(Expr::eval(
             &serde_json::from_str(&small_num.to_string()).unwrap(),
             &mut env
         )
-        .is_err_and(|e| matches!(e, InterpError::TypeError { expected: _, found: _ })));
+        .is_err_and(|e| matches!(
+            e,
+            InterpError::TypeError {
+                expected: _,
+                found: _
+            }
+        )));
 
         Ok(())
     }
