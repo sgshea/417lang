@@ -14,15 +14,22 @@ pub fn main() {
         use parser::parse;
 
         let input = io::read_to_string(io::stdin());
-        let ast = parse(&input.expect("Error reading input."));
-        let mut env = Environment::default_environment();
-        match interpret(ast, &mut env) {
+        match parse("stdio", &input.expect("Error reading input.")) {
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("{:?}", e.as_diagnostic());
                 std::process::exit(1);
-            }
-            Ok(expr) => {
-                println!("{}", expr);
+            },
+            Ok(ast) => {
+                let mut env = Environment::default_environment();
+                match interpret(ast, &mut env) {
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                    Ok(expr) => {
+                        println!("{}", expr);
+                    }
+                }
             }
         }
     }
@@ -64,7 +71,7 @@ macro_rules! language {
     ($($input:tt)*) => {{
         let mut env = Environment::default_environment();
         let code_as_string = stringify!($($input)*);
-        interpret(parse(code_as_string), &mut env)
+        interpret(parse("test", code_as_string), &mut env)
     }};
 }
 
