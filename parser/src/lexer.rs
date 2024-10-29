@@ -173,7 +173,7 @@ impl<'a> Lexer<'a> {
                     &self.source_name,
                     &self.source,
                     (self.current_location, 1),
-                    "Unexpected character"
+                    "Unexpected character",
                 );
                 self.errors.push(error);
                 // advance
@@ -198,7 +198,7 @@ impl<'a> Lexer<'a> {
                     &self.source_name,
                     &self.source,
                     (self.current_location, 1),
-                    "Invalid identifier start character"
+                    "Invalid identifier start character",
                 );
                 self.errors.push(error);
             }

@@ -1,4 +1,4 @@
-use miette::{Diagnostic, NamedSource, SourceSpan};
+use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic, Clone)]
@@ -10,7 +10,13 @@ pub struct ParseError {
     label: String,
 
     #[label("{label} here")]
-    bad_bit: SourceSpan,
+    main_span: SourceSpan,
+
+    #[label(collection, "related to this")]
+    other_spans: Vec<LabeledSpan>,
+
+    #[help]
+    help: Option<String>,
 }
 
 impl ParseError {
@@ -18,12 +24,33 @@ impl ParseError {
         let err = Self {
             src: NamedSource::new(source_name, src.to_string()),
             label: label.to_string(),
-            bad_bit: span.into(),
+            main_span: span.into(),
+            other_spans: vec![],
+            help: None
+        };
+        err
+    }
+
+    pub fn new_full(source_name: &str, src: &str, span: (usize, usize), label: &str, help: Option<String>, other_spans: Vec<LabeledSpan>) -> Self {
+        let err = Self {
+            src: NamedSource::new(source_name, src.to_string()),
+            label: label.to_string(),
+            main_span: span.into(),
+            other_spans,
+            help
         };
         err
     }
 
     pub fn change_label(&mut self, new_label: &str) {
         self.label = new_label.to_string()
+    }
+
+    pub fn add_spans(&mut self, additional_spans: &mut Vec<LabeledSpan>) {
+        self.other_spans.append(additional_spans);
+    }
+
+    pub fn add_help(&mut self, help: &str) {
+        self.help = Some(help.to_string())
     }
 }

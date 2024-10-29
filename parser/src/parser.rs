@@ -1,3 +1,4 @@
+use miette::LabeledSpan;
 use serde_json::{json, Value};
 
 use crate::{
@@ -60,9 +61,14 @@ impl<'a, T: LexToken> Parser<'a, T> {
             Token::Keyword(_) => self.parse_form(),
             Token::OpenBrace => self.parse_block(),
             _ => {
-                let err = ParseError::new(&self.source_name, &self.source, (self.current_source().unwrap(), 1).into(), "Expected expression");
+                let err = ParseError::new(
+                    &self.source_name,
+                    &self.source,
+                    (self.current_source().unwrap(), 1).into(),
+                    "Expected expression",
+                );
                 return Err(err);
-            },
+            }
         };
 
         // If the next token is an OpenParen, treat it as a function application
@@ -174,17 +180,24 @@ impl<'a, T: LexToken> Parser<'a, T> {
 
     // BLOCK := '{' EXPLIST? '}'
     fn parse_block(&mut self) -> Result<Value, ParseError> {
+        let current_source = self.current_source(); // used to construct error if needed
         self.consume(&Token::OpenBrace); // Expect '{'
         let mut exps = vec![];
         while !self.consume(&Token::CloseBrace) {
             // Expect '}' to end
             match self.parse_exp() {
-               Ok(exp) => exps.push(exp), 
-               Err(mut e) => {
+                Ok(exp) => exps.push(exp),
+                Err(mut e) => {
                     // customize error message
-                    e.change_label("Expected '}' to end expression");
+                    e.change_label("Found end of block");
+                    let start_block_span = LabeledSpan::at(
+                        current_source.expect("Expect block start source to exist"),
+                        "Found opening '{' here",
+                    );
+                    e.add_spans(&mut vec![start_block_span]);
+                    e.add_help("Close the block with a '}'");
                     return Err(e);
-               }
+                }
             }
             if self.consume(&Token::Semicolon) {
                 continue;
