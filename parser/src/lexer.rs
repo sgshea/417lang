@@ -60,6 +60,7 @@ pub enum Keyword {
 }
 
 pub struct Lexer<'a> {
+    source_name: &'a str,
     source: &'a str,
     input: Peekable<Chars<'a>>,
     keywords: HashMap<&'a str, Token>,
@@ -69,7 +70,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Self {
+    pub fn new(source_name: &'a str, source: &'a str) -> Self {
         let mut keywords = HashMap::new();
         keywords.insert("lambda", Token::Keyword(Keyword::Lambda));
         keywords.insert("λ", Token::Keyword(Keyword::Lambda));
@@ -78,6 +79,7 @@ impl<'a> Lexer<'a> {
         keywords.insert("cond", Token::Keyword(Keyword::Cond));
 
         let lexer = Self {
+            source_name,
             source,
             input: source.chars().peekable(),
             keywords,
@@ -168,9 +170,10 @@ impl<'a> Lexer<'a> {
             Some(c) if c.is_digit(10) || *c == '+' || *c == '-' => self.lex_integer(),
             Some(_) => {
                 let error = ParseError::new(
-                    "input",
-                    self.source,
-                    (self.current_location, 1)
+                    &self.source_name,
+                    &self.source,
+                    (self.current_location, 1),
+                    "Unexpected character"
                 );
                 self.errors.push(error);
                 // advance
@@ -191,7 +194,13 @@ impl<'a> Lexer<'a> {
                 identifier.push(*c);
                 self.next_char();
             } else {
-                panic!("Invalid identifier start character: {:?}", c);
+                let error = ParseError::new(
+                    &self.source_name,
+                    &self.source,
+                    (self.current_location, 1),
+                    "Invalid identifier start character"
+                );
+                self.errors.push(error);
             }
         }
 
@@ -253,7 +262,15 @@ impl<'a> Lexer<'a> {
                             't' => string_content.push('\t'),
                             'n' => string_content.push('\n'),
                             'r' => string_content.push('\r'),
-                            _ => panic!("Invalid escape sequence: \\{}", escaped_char),
+                            _ => {
+                                let error = ParseError::new(
+                                    &self.source_name,
+                                    &self.source,
+                                    (self.current_location, 1),
+                                    "Invalid escape sequence",
+                                );
+                                self.errors.push(error);
+                            }
                         }
                         self.next_char();
                     }
@@ -311,7 +328,7 @@ mod tests {
         }
         "#;
         // let input = r#"add"#;
-        let mut lexer = Lexer::new(input);
+        let mut lexer = Lexer::new("test", input);
 
         loop {
             let token = lexer.next_token();

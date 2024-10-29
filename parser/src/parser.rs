@@ -10,14 +10,16 @@ pub struct Parser<'a, T: LexToken> {
     tokens: &'a [T],
     current: usize,
 
+    source_name: &'a str,
     source: &'a str,
 }
 
 impl<'a, T: LexToken> Parser<'a, T> {
-    pub fn new(source: &'a str, tokens: &'a [T]) -> Self {
+    pub fn new(source_name: &'a str, source: &'a str, tokens: &'a [T]) -> Self {
         Parser {
             tokens,
             current: 0,
+            source_name,
             source,
         }
     }
@@ -58,21 +60,21 @@ impl<'a, T: LexToken> Parser<'a, T> {
             Token::Keyword(_) => self.parse_form(),
             Token::OpenBrace => self.parse_block(),
             _ => {
-                let err = ParseError::new("input", &self.source, (self.current_source().unwrap(), 1));
+                let err = ParseError::new(&self.source_name, &self.source, (self.current_source().unwrap(), 1).into(), "Expected expression");
                 return Err(err);
             },
         };
 
         // If the next token is an OpenParen, treat it as a function application
         if let Token::OpenParen = self.current_token() {
-            return self.parse_application(expr);
+            return self.parse_application(expr?);
         }
 
-        Ok(expr)
+        expr
     }
 
     // FORM := APPLICATION | LAMBDA | COND | BLOCK | LET | DEFINITION
-    fn parse_form(&mut self) -> Value {
+    fn parse_form(&mut self) -> Result<Value, ParseError> {
         match &self.current_token() {
             Token::Keyword(kw) => match kw {
                 Keyword::Def => self.parse_definition(),
@@ -85,22 +87,22 @@ impl<'a, T: LexToken> Parser<'a, T> {
     }
 
     // ATOM := IDENTIFIER | STRING | INTEGER
-    fn parse_atom(&mut self) -> Value {
+    fn parse_atom(&mut self) -> Result<Value, ParseError> {
         match self.current_token() {
             Token::Identifier(ref name) => {
                 let value = json!({ "Identifier": name });
                 self.next_token(); // Consume the identifier
-                value
+                Ok(value)
             }
             Token::Integer(ref num) => {
                 let value = json!(num);
                 self.next_token(); // Consume the integer
-                value
+                Ok(value)
             }
             Token::String(ref s) => {
                 let value = json!(s);
                 self.next_token(); // Consume the string
-                value
+                Ok(value)
             }
             _ => panic!("Unexpected atom: {:?}", self.current_token()),
         }
@@ -128,13 +130,13 @@ impl<'a, T: LexToken> Parser<'a, T> {
     }
 
     // LAMBDA := ('lambda' | 'λ') '(' PARAMETERS ')' BLOCK
-    fn parse_lambda(&mut self) -> Value {
+    fn parse_lambda(&mut self) -> Result<Value, ParseError> {
         self.next_token(); // Consume 'lambda' or 'λ'
         self.consume(&Token::OpenParen); // Expect '('
         let params = self.parse_parameters(); // Parse parameters
         self.consume(&Token::CloseParen); // Expect ')'
-        let block = self.parse_block(); // Parse block
-        json!({ "Lambda": [params, block] })
+        let block = self.parse_block()?; // Parse block
+        Ok(json!({ "Lambda": [params, block] }))
     }
 
     // PARAMETERS := IDENTIFIER (',' IDENTIFIER)*
@@ -151,53 +153,60 @@ impl<'a, T: LexToken> Parser<'a, T> {
     }
 
     // COND := 'cond' CLAUSE+
-    fn parse_cond(&mut self) -> Value {
+    fn parse_cond(&mut self) -> Result<Value, ParseError> {
         self.next_token(); // Consume 'cond'
         let mut clauses = vec![];
         while let Token::OpenParen = self.current_token() {
-            clauses.push(self.parse_clause());
+            clauses.push(self.parse_clause()?);
         }
-        json!({ "Cond": clauses })
+        Ok(json!({ "Cond": clauses }))
     }
 
     // CLAUSE := '(' EXP '=>' EXP ')'
-    fn parse_clause(&mut self) -> Value {
+    fn parse_clause(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::OpenParen); // Expect '('
-        let condition = self.parse_exp().unwrap(); // Parse the condition
+        let condition = self.parse_exp()?; // Parse the condition
         self.consume(&Token::Arrow); // Expect '=>'
-        let result = self.parse_exp().unwrap(); // Parse the result
+        let result = self.parse_exp()?; // Parse the result
         self.consume(&Token::CloseParen); // Expect ')'
-        json!({ "Clause": [condition, result] })
+        Ok(json!({ "Clause": [condition, result] }))
     }
 
     // BLOCK := '{' EXPLIST? '}'
-    fn parse_block(&mut self) -> Value {
+    fn parse_block(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::OpenBrace); // Expect '{'
         let mut exps = vec![];
         while !self.consume(&Token::CloseBrace) {
             // Expect '}' to end
-            exps.push(self.parse_exp().unwrap());
+            match self.parse_exp() {
+               Ok(exp) => exps.push(exp), 
+               Err(mut e) => {
+                    // customize error message
+                    e.change_label("Expected '}' to end expression");
+                    return Err(e);
+               }
+            }
             if self.consume(&Token::Semicolon) {
                 continue;
             }
         }
-        json!({ "Block": exps })
+        Ok(json!({ "Block": exps }))
     }
 
     // LET := 'let' IDENTIFIER EXP
-    fn parse_let(&mut self) -> Value {
+    fn parse_let(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
-        let identifier = self.parse_atom();
-        let exp = self.parse_exp().unwrap();
-        json!({ "Let": [identifier, exp] })
+        let identifier = self.parse_atom()?;
+        let exp = self.parse_exp()?;
+        Ok(json!({ "Let": [identifier, exp] }))
     }
 
     // DEFINITION := 'def' IDENTIFIER EXP
-    fn parse_definition(&mut self) -> Value {
+    fn parse_definition(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Def));
-        let name = self.parse_atom();
-        let body = self.parse_exp().unwrap();
-        json!({ "Def": [name, body] })
+        let name = self.parse_atom()?;
+        let body = self.parse_exp()?;
+        Ok(json!({ "Def": [name, body] }))
     }
 }
 
@@ -247,7 +256,7 @@ mod tests {
         ];
 
         // passing in empty input (we don't expect errors for this test anyway)
-        let mut parser = Parser::new("", &tokens);
+        let mut parser = Parser::new("", "", &tokens);
         let ast = parser.parse_program().unwrap();
 
         let output = r#"
