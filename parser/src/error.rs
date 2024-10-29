@@ -1,4 +1,4 @@
-use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
+use miette::{Diagnostic, Report, LabeledSpan, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic, Clone)]
@@ -52,5 +52,9 @@ impl ParseError {
 
     pub fn add_help(&mut self, help: &str) {
         self.help = Some(help.to_string())
+    }
+
+    pub fn as_diagnostic(self) -> Report {
+        self.into()
     }
 }
