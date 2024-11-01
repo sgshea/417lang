@@ -181,7 +181,17 @@ impl<'a, T: LexToken> Parser<'a, T> {
     // BLOCK := '{' EXPLIST? '}'
     fn parse_block(&mut self) -> Result<Value, ParseError> {
         let current_source = self.current_source(); // used to construct error if needed
-        self.consume(&Token::OpenBrace); // Expect '{'
+        if !self.consume(&Token::OpenBrace) {
+            // Expect '{'
+            return Err(ParseError::new_full(
+                &self.source_name,
+                &self.source,
+                (current_source.unwrap(), 1).into(),
+                "Expected a block",
+                Some("Create a block with enclosing braces".to_string()),
+                vec![]
+            ));
+        }
         let mut exps = vec![];
         while !self.consume(&Token::CloseBrace) {
             // Expect '}' to end

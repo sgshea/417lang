@@ -3,7 +3,7 @@ use serde_json::Value;
 use crate::{
     environment::Environment,
     error::InterpError,
-    interpreter::{exprs_into_i64, parse_block_with_bindings, Expr},
+    interpreter::{parse_block_with_bindings, Expr},
 };
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -18,6 +18,7 @@ pub enum Function {
         name: String,
         args: Vec<String>,
         func: Value,
+        // TODO: lexical scope should store environment
     },
 }
 
@@ -120,6 +121,14 @@ pub fn function_application(
     })
 }
 
+/// Helper functions
+fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
+    args
+        .into_iter()
+        .map(|expr| expr.try_into())
+        .collect::<Result<Vec<i64>, InterpError>>()
+}
+
 /// BEGIN INBUILT FUNCTIONS
 
 // Takes in any amount of arguments and adds them together
@@ -179,4 +188,33 @@ pub fn dbg(args: &[Expr]) -> Result<Expr, InterpError> {
         dbg!(arg);
     }
     Ok(Expr::Boolean(true))
+}
+
+/// Returns argument strings as new, uppercase strings
+/// If there are multiple arguments, it returns a list of the new strings
+pub fn to_uppercase(args: &[Expr]) -> Result<Expr, InterpError> {
+    if args.len() > 1 {
+        let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_uppercase()))).collect::<Result<Vec<String>, InterpError>>()?;
+        Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
+    } else {
+        Ok(Expr::String(args[0].clone().try_into().and_then(|s: String| Ok(s.to_uppercase()))?))
+    }
+}
+
+
+/// Returns argument strings as new, lowercase strings
+/// If there are multiple arguments, it returns a list of the new strings
+pub fn to_lowercase(args: &[Expr]) -> Result<Expr, InterpError> {
+    if args.len() > 1 {
+        let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_lowercase()))).collect::<Result<Vec<String>, InterpError>>()?;
+        Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
+    } else {
+        Ok(Expr::String(args[0].clone().try_into().and_then(|s: String| Ok(s.to_lowercase()))?))
+    }
+}
+
+/// Concatenates strings together
+pub fn concat(args: &[Expr]) -> Result<Expr, InterpError> {
+    let exprs = args.into_iter().map(|f| f.try_into()).collect::<Result<Vec<String>, InterpError>>()?;
+    Ok(Expr::String(exprs.concat()))
 }

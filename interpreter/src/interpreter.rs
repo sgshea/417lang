@@ -51,8 +51,24 @@ impl Expr {
             }),
         }
     }
+}
 
-    pub fn into_i64(&self) -> Result<i64, InterpError> {
+impl TryInto<bool> for &Expr {
+    fn try_into(self) -> Result<bool, Self::Error> {
+        match self {
+            Expr::Boolean(bool) => Ok(*bool),
+            _ => Err(InterpError::TypeError {
+                expected: "bool".to_string(),
+                found: self.to_string(),
+            }),
+        }
+    }
+
+    type Error = InterpError;
+}
+
+impl TryInto<i64> for &Expr {
+    fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Expr::Integer(int) => Ok(*int),
             _ => Err(InterpError::TypeError {
@@ -61,6 +77,36 @@ impl Expr {
             }),
         }
     }
+
+    type Error = InterpError;
+}
+
+impl TryInto<String> for Expr {
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            Expr::String(str) => Ok(str.to_string()),
+            _ => Err(InterpError::TypeError {
+                expected: "string".to_string(),
+                found: self.to_string(),
+            }),
+        }
+    }
+
+    type Error = InterpError;
+}
+
+impl TryInto<String> for &Expr {
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            Expr::String(str) => Ok(str.to_string()),
+            _ => Err(InterpError::TypeError {
+                expected: "string".to_string(),
+                found: self.to_string(),
+            }),
+        }
+    }
+
+    type Error = InterpError;
 }
 
 /// Parse a JSON object, looking for the keys that correspond to certain behaviors
@@ -125,6 +171,10 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
     }
 
     if let Some(arr) = obj.get("Let") {
+        return parse_let(arr, env);
+    }
+
+    if let Some(arr) = obj.get("Def") {
         return parse_let(arr, env);
     }
 
@@ -221,13 +271,6 @@ impl fmt::Display for Expr {
             },
         }
     }
-}
-
-pub fn exprs_into_i64(exprs: &[Expr]) -> Result<Vec<i64>, InterpError> {
-    exprs
-        .into_iter()
-        .map(|expr| expr.into_i64())
-        .collect::<Result<Vec<i64>, InterpError>>()
 }
 
 pub fn interpret(val: serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
