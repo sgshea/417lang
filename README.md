@@ -20,3 +20,12 @@ The following command runs the interpreter with this feature, allowing it to tak
 The parser can be run standalone using `run.sh -p`
 ## Dependencies
 `serde` and `serde_json`: JSON parsing
+
+## WASM
+Commands to build for wasm (specific to my machine for now)
+- need to install wasm-pack first
+- navigate to interpreter folder and run:
+- open index.html
+```
+~/.cargo/bin/wasm-pack build --target web --features "parser"
+```

@@ -1,27 +1,20 @@
-mod environment;
-mod error;
-mod functions;
-mod interpreter;
-
-use std::io;
-
-use environment::Environment;
-use interpreter::interpret;
-
+#[cfg(not(target_arch = "wasm32"))]
 pub fn main() {
     #[cfg(feature = "parser")]
     {
+        use std::io;
         use parser::parse;
+        use interpreter::interpret_default;
 
         let input = io::read_to_string(io::stdin());
+        use interpreter::interpret_with_parser_to_string;
         match parse("stdio", &input.expect("Error reading input.")) {
             Err(e) => {
                 eprintln!("{:?}", e.as_diagnostic());
                 std::process::exit(1);
             },
             Ok(ast) => {
-                let mut env = Environment::default_environment();
-                match interpret(ast, &mut env) {
+                match interpret_default(ast) {
                     Err(e) => {
                         eprintln!("{}", e);
                         std::process::exit(1);
@@ -36,80 +29,20 @@ pub fn main() {
 
     #[cfg(not(feature = "parser"))]
     {
-        use error::InterpError;
-        // Initialize the environment
-        let mut env = Environment::default_environment();
+        use std::io;
+        use interpreter::interpret_string;
 
-        // Interpret input
-        match serde_json::from_reader(io::stdin()) {
-            Err(_) => {
-                eprintln!(
-                    "{}",
-                    InterpError::ParseError {
-                        message: "Unable to parse JSON into interpreter.".to_string()
-                    }
-                );
+        let input = io::read_to_string(io::stdin()).expect("Error reading from stdin.");
+
+        match interpret_string(&input) {
+            Err(e) => {
+                eprintln!("{}", e);
                 std::process::exit(1);
-            }
-            Ok(val) => match interpret(val, &mut env) {
-                Err(e) => {
-                    eprintln!("{}", e);
-                    std::process::exit(1);
-                }
-                Ok(expr) => {
-                    println!("{}", expr);
-                }
             },
+            Ok(expr) => {
+                println!("{}", expr);
+                std::process::exit(0);
+            }
         }
-    }
-}
-
-/// Macro to use the interpreter & parser together
-#[cfg(feature = "parser")]
-#[allow(unused_macros)]
-macro_rules! language {
-    ($($input:tt)*) => {{
-        let mut env = Environment::default_environment();
-        let code_as_string = stringify!($($input)*);
-        interpret(parse("test", code_as_string), &mut env)
-    }};
-}
-
-/// Parsing for the entire interpreter
-/// Uses parser feature to simulate input
-#[cfg(feature = "parser")]
-#[cfg(test)]
-mod tests {
-    use error::InterpError;
-    use interpreter::Expr;
-
-    use parser::parse;
-
-    use super::*;
-
-    #[test]
-    fn checkpoint_2() -> Result<(), InterpError> {
-        assert_eq!(language! { -2 }?, Expr::Integer(-2));
-        assert_eq!(language! { 000 }?, Expr::Integer(0));
-        assert_eq!(language! { add(4, 5) }?, Expr::Integer(9));
-        assert_eq!(
-            language! { add(1, add(2, add(3, add(4, 5)))) }?,
-            Expr::Integer(15)
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn checkpoint_3() -> Result<(), InterpError> {
-        assert_eq!(language! { sub(0, 1) }?, Expr::Integer(-1));
-        assert_eq!(language! { cond (true => 5) }?, Expr::Integer(5));
-        assert_eq!(
-            language! { cond (false => -1) (true => 5) }?,
-            Expr::Integer(5)
-        );
-        assert!(language! { cond (add(1, 1) => -1) (true => 5) }.is_err());
-
-        Ok(())
     }
 }

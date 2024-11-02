@@ -273,10 +273,6 @@ impl fmt::Display for Expr {
     }
 }
 
-pub fn interpret(val: serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
-    Expr::eval(&val, env)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

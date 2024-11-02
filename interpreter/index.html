@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monaco Editor with WASM</title>
+    <link rel="stylesheet" href="https://unpkg.com/monaco-editor/min/vs/editor/editor.main.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .editor-container {
+            display: flex;
+            width: 100%;
+            max-width: 1600px; /* Adjust as needed */
+        }
+        #editor {
+            height: 400px;
+            width: 50%; /* Take half of the available width */
+            border-right: 1px solid #ccc; /* Optional: Add a separator */
+        }
+        #outputEditor {
+            height: 400px;
+            width: 50%; /* Take half of the available width */
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <div id="editor"></div>
+        <div id="outputEditor"></div>
+    </div>
+    <button id="runButton">Run</button>
+
+    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
+    <script src="index.js" type="module"></script>
+</body>
+</html>
