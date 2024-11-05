@@ -2,6 +2,8 @@ use environment::Environment;
 use error::InterpError;
 use interpreter::Expr;
 
+// WASM dependencies and functions locked behind "wasm" feature so that the crate does not need to be downloaded on normal runs
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 pub mod environment;
@@ -11,30 +13,54 @@ pub mod interpreter;
 
 /// Interprets a string, assumed to be valid JSON input from a parser
 /// Returns either the interpreted expression or an error
-pub fn interpret_string(input: &str) -> Result<Expr, InterpError> {
+pub fn interpret_string(input: &str, store_output: bool) -> Result<Expr, InterpError> {
     // Interpret input
     match serde_json::from_str(input) {
         Err(_) => Err(InterpError::ParseError {
             message: "Unable to parse JSON into interpreter.".to_string(),
         }),
-        Ok(j) => interpret_default(j),
+        Ok(j) => interpret_default(j, store_output),
     }
 }
 
-pub fn interpret_default(val: serde_json::Value) -> Result<Expr, InterpError> {
-    let env = &mut Environment::default_environment();
+pub fn interpret_default(val: serde_json::Value, store_output: bool) -> Result<Expr, InterpError> {
+    let env = &mut Environment::default_environment(store_output);
     Expr::eval(&val, env)
+}
+
+/// Interprets a string
+/// Returns the result of interpreting in string form
+/// Expects the string to be valid JSON input
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn interpret_to_string(input: &str) -> String {
+    match interpret_string(input, true) {
+        Err(e) => return e.to_string(),
+        Ok(expr) => return expr.to_string(),
+    }
+}
+
+/// Parses a string
+/// Returns the result of parsing in string form
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn parse_to_string(input: &str) -> String {
+    use parser::parse;
+    match parse("input", input) {
+        Err(e) => return format!("{:?}", e.as_diagnostic()),
+        Ok(ast) => return serde_json::to_string_pretty(&ast).unwrap(),
+    }
 }
 
 /// Parses and then interprets a string
 /// Returns the result of parsing and interpreting in string form
-#[cfg(feature = "parser")]
+/// Same as above but exported for WASM
+#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn interpret_with_parser_to_string(input: &str) -> String {
     use parser::parse;
     match parse("input", input) {
         Err(e) => return format!("{:?}", e.as_diagnostic()),
-        Ok(ast) => match interpret_default(ast) {
+        Ok(ast) => match interpret_default(ast, true) {
             Err(e) => return e.to_string(),
             Ok(expr) => return expr.to_string(),
         },

@@ -10,13 +10,19 @@ use crate::error::InterpError;
 pub struct Environment {
     // Stack of environments, deepest is default, next is global, then local, etc.
     stack: Vec<HashMap<String, Expr>>,
+    // Flag for whether to store output instead of directly doing it
+    pub store_output: bool,
+    // All output stored, able to be used for environments that do not support printing normally (WASM)
+    output: Vec<String>,
 }
 
 impl Environment {
     /// Default environment of the interpreter with all builtins
-    pub fn default_environment() -> Self {
+    pub fn default_environment(store_output: bool) -> Self {
         let mut env = Self {
-            stack: vec![HashMap::new()]
+            stack: vec![HashMap::new()],
+            store_output,
+            output: Vec::new()
         };
 
         env.add_builtin_func("print", print);
@@ -45,7 +51,7 @@ impl Environment {
     }
 
     /// Adds function to builtins (bottom of stack)
-    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr]) -> Result<Expr, InterpError>) {
+    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>) {
         self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(RFunc { name: name.to_string(), func }));
     }
 
@@ -76,5 +82,15 @@ impl Environment {
             }
         }
         None
+    }
+
+    /// Add new element to output
+    pub fn add_output(&mut self, output: &str) {
+        self.output.push(output.to_string());
+    }
+
+    /// Get the output
+    pub fn get_output(&self) -> &Vec<String> {
+        &self.output
     }
 }

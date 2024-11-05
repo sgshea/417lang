@@ -11,7 +11,7 @@ pub enum Function {
     // Internal Rust function (holds a function pointer)
     RFunc {
         name: String,
-        func: fn(&[Expr]) -> Result<Expr, InterpError>,
+        func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>,
     },
     // User function defined in the language. It has a name and evaluates to an expression.
     UFunc {
@@ -90,7 +90,7 @@ pub fn function_application(
         })?;
         if let Expr::Function(func) = first {
             match func {
-                Function::RFunc { name: _name, func } => return func(rest),
+                Function::RFunc { name: _name, func } => return func(rest, env),
                 Function::UFunc {
                     name,
                     args,
@@ -101,7 +101,7 @@ pub fn function_application(
                     }
 
                     return parse_block_with_bindings(
-                        func,
+                        &func,
                         env,
                         args.into_iter()
                             .zip(rest.into_iter())
@@ -132,13 +132,13 @@ fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
 /// BEGIN INBUILT FUNCTIONS
 
 // Takes in any amount of arguments and adds them together
-pub fn add(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn add(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(ints.into_iter().sum()))
 }
 
 // Takes in any amount of arguments and subtracts from the first argument
-pub fn sub(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn sub(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(
         ints.into_iter().reduce(|first, x| first - x).unwrap_or(0),
@@ -146,18 +146,18 @@ pub fn sub(args: &[Expr]) -> Result<Expr, InterpError> {
 }
 
 // Takes in any amount of arguments and multiplys to the first argument
-pub fn mul(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn mul(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(ints.into_iter().product()))
 }
 
-pub fn zero(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn zero(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let int = exprs_into_i64(args)?;
     let bool = int[0] == 0;
     Ok(Expr::Boolean(bool))
 }
 
-pub fn eq(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn eq(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     match args.is_empty() {
         false => {
             let first = args.first().expect("Was not empty in previous check");
@@ -167,32 +167,44 @@ pub fn eq(args: &[Expr]) -> Result<Expr, InterpError> {
     }
 }
 
-pub fn print(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn print(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
-        print!("{}", arg);
+        if env.store_output {
+            env.add_output(&arg.to_string());
+        } else {
+            print!("{}", arg);
+        }
     }
 
     Ok(Expr::Boolean(true))
 }
 
-pub fn println(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn println(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
-        println!("{}", arg);
+        if env.store_output {
+            env.add_output(&arg.to_string());
+        } else {
+            println!("{}", arg);
+        }
     }
 
     Ok(Expr::Boolean(true))
 }
 
-pub fn dbg(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn dbg(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
-        dbg!(arg);
+        if env.store_output {
+            env.add_output(&arg.to_string()); // TODO make sure it is dbg formatted
+        } else {
+            dbg!(arg);
+        }
     }
     Ok(Expr::Boolean(true))
 }
 
 /// Returns argument strings as new, uppercase strings
 /// If there are multiple arguments, it returns a list of the new strings
-pub fn to_uppercase(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn to_uppercase(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     if args.len() > 1 {
         let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_uppercase()))).collect::<Result<Vec<String>, InterpError>>()?;
         Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
@@ -204,7 +216,7 @@ pub fn to_uppercase(args: &[Expr]) -> Result<Expr, InterpError> {
 
 /// Returns argument strings as new, lowercase strings
 /// If there are multiple arguments, it returns a list of the new strings
-pub fn to_lowercase(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn to_lowercase(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     if args.len() > 1 {
         let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_lowercase()))).collect::<Result<Vec<String>, InterpError>>()?;
         Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
@@ -214,7 +226,7 @@ pub fn to_lowercase(args: &[Expr]) -> Result<Expr, InterpError> {
 }
 
 /// Concatenates strings together
-pub fn concat(args: &[Expr]) -> Result<Expr, InterpError> {
+pub fn concat(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let exprs = args.into_iter().map(|f| f.try_into()).collect::<Result<Vec<String>, InterpError>>()?;
     Ok(Expr::String(exprs.concat()))
 }

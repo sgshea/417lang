@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn parse_valid_integer() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment();
+        let mut env = Environment::default_environment(false);
         assert_eq!(
             Expr::Integer(12),
             Expr::eval(&serde_json::from_str("12").unwrap(), &mut env)?
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn parse_invalid_integer() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment();
+        let mut env = Environment::default_environment(false);
         // Construct numbers larger and smaller than the range supported
         let big_num = i64::MAX as u64 + 10;
         // (Creating a string version manually less than i64::MIN)
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn parse_valid_string() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment();
+        let mut env = Environment::default_environment(false);
         assert_eq!(
             Expr::String("rust".to_string()),
             Expr::eval(&serde_json::from_str("\"rust\"").unwrap(), &mut env)?

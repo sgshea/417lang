@@ -3,38 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monaco Editor with WASM</title>
+    <title>417 Language WASM Demo</title>
     <link rel="stylesheet" href="https://unpkg.com/monaco-editor/min/vs/editor/editor.main.css">
+    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
+    <script src="index.js" type="module"></script>
     <style>
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        .editor-container {
+        .controls {
             display: flex;
+            align-items: center;
+            justify-content: space-evenly;
             width: 100%;
-            max-width: 1600px; /* Adjust as needed */
+            margin-bottom: 10px;
+        }
+        #runButton {
+            margin-right: 20px;
+        }
+        .checkboxes {
+            display: flex;
         }
         #editor {
             height: 400px;
-            width: 50%; /* Take half of the available width */
-            border-right: 1px solid #ccc; /* Optional: Add a separator */
+            width: 50%;
+            border-right: 1px solid #ccc;
         }
         #outputEditor {
             height: 400px;
-            width: 50%; /* Take half of the available width */
+            width: 50%;
+        }
+        .editor-container {
+            display: flex;
+            width: 100%;
+            max-width: 1600px;
         }
     </style>
 </head>
 <body>
+    <div class="controls">
+        <button id="runButton">Run</button>
+        <div class="checkboxes">
+            <label>
+                <input type="checkbox" id="useParseCheckbox" checked> Parse
+            </label>
+            <label>
+                <input type="checkbox" id="useInterpretCheckbox" checked> Interpret
+            </label>
+        </div>
+    </div>
     <div class="editor-container">
         <div id="editor"></div>
         <div id="outputEditor"></div>
     </div>
-    <button id="runButton">Run</button>
-
-    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
-    <script src="index.js" type="module"></script>
+    <select id="snippetDropdown">
+        <option value="">Select a Snippet</option>
+    </select>
+    <div>Shortcuts: (Run): Alt + Enter</div>
 </body>
 </html>
