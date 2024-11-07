@@ -1,4 +1,4 @@
-import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./pkg/interpreter.js";
+import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./interpreter/pkg/interpreter.js";
 require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' }});
 
 const snippets = {
