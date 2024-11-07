@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde_json::Value;
 
 use crate::{
@@ -6,15 +8,15 @@ use crate::{
     interpreter::{parse_block_with_bindings, Expr},
 };
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Function {
     // Internal Rust function (holds a function pointer)
-    RFunc {
+    CoreFunction {
         name: String,
         func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>,
     },
     // User function defined in the language. It has a name and evaluates to an expression.
-    UFunc {
+    Function {
         name: String,
         args: Vec<String>,
         func: Value,
@@ -23,8 +25,31 @@ pub enum Function {
     },
 }
 
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Function::CoreFunction { name, .. } => write!(f, "CoreFunction(name: {})", name),
+            Function::Function {
+                name,
+                args,
+                func,
+                env: _,
+            } => {
+                write!(
+                    f,
+                    "Function(name: {}, args: {:?}, func: {:?})",
+                    name, args, func
+                )
+            }
+        }
+    }
+}
+
 /// Parse a function into a UFunc, without evaluating it
-pub fn parse_anonymous_function(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+pub fn parse_anonymous_function(
+    val: &serde_json::Value,
+    env: &mut Environment,
+) -> Result<Expr, InterpError> {
     // We are in the "Lambda" object's value, which should have two list items, a parameters object and block object
     let [parameters, block] = match val.as_array() {
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
@@ -74,7 +99,7 @@ pub fn parse_anonymous_function(val: &serde_json::Value, env: &mut Environment) 
             };
         })?;
 
-    Ok(Expr::Function(Function::UFunc {
+    Ok(Expr::Function(Function::Function {
         name: "Anonymous".to_string(),
         args: parameters,
         func: block.clone(),
@@ -92,15 +117,19 @@ pub fn function_application(
         })?;
         if let Expr::Function(func) = first {
             match func {
-                Function::RFunc { name: _name, func } => return func(rest, env),
-                Function::UFunc {
+                Function::CoreFunction { name: _name, func } => return func(rest, env),
+                Function::Function {
                     name,
                     args,
                     func,
                     env: local_env,
                 } => {
                     if args.len() != rest.len() {
-                        return Err(InterpError::ArgumentError { func: name.to_string(), expected: args.len(), got: rest.len() })
+                        return Err(InterpError::ArgumentError {
+                            func: name.to_string(),
+                            expected: args.len(),
+                            got: rest.len(),
+                        });
                     }
 
                     if env.lexical_scope {
@@ -110,7 +139,7 @@ pub fn function_application(
                             args.into_iter()
                                 .zip(rest.into_iter())
                                 .collect::<Vec<(&String, &Expr)>>(),
-                        )
+                        );
                     } else {
                         return parse_block_with_bindings(
                             &func,
@@ -118,7 +147,7 @@ pub fn function_application(
                             args.into_iter()
                                 .zip(rest.into_iter())
                                 .collect::<Vec<(&String, &Expr)>>(),
-                        )
+                        );
                     }
                 }
             }
@@ -136,8 +165,7 @@ pub fn function_application(
 
 /// Helper functions
 fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
-    args
-        .into_iter()
+    args.into_iter()
         .map(|expr| expr.try_into())
         .collect::<Result<Vec<i64>, InterpError>>()
 }
@@ -209,7 +237,7 @@ pub fn println(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError
 pub fn dbg(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
         if env.store_output {
-            env.add_output(&arg.to_string()); // TODO make sure it is dbg formatted
+            env.add_output(format!("{:#?}\n", arg).as_str());
         } else {
             dbg!(arg);
         }
@@ -221,27 +249,49 @@ pub fn dbg(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
 /// If there are multiple arguments, it returns a list of the new strings
 pub fn to_uppercase(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     if args.len() > 1 {
-        let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_uppercase()))).collect::<Result<Vec<String>, InterpError>>()?;
-        Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
+        let exprs = args
+            .into_iter()
+            .map(|f| f.try_into().and_then(|s: String| Ok(s.to_uppercase())))
+            .collect::<Result<Vec<String>, InterpError>>()?;
+        Ok(Expr::List(
+            exprs.into_iter().map(|s| Expr::String(s)).collect(),
+        ))
     } else {
-        Ok(Expr::String(args[0].clone().try_into().and_then(|s: String| Ok(s.to_uppercase()))?))
+        Ok(Expr::String(
+            args[0]
+                .clone()
+                .try_into()
+                .and_then(|s: String| Ok(s.to_uppercase()))?,
+        ))
     }
 }
-
 
 /// Returns argument strings as new, lowercase strings
 /// If there are multiple arguments, it returns a list of the new strings
 pub fn to_lowercase(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     if args.len() > 1 {
-        let exprs = args.into_iter().map(|f| f.try_into().and_then(|s:String| Ok(s.to_lowercase()))).collect::<Result<Vec<String>, InterpError>>()?;
-        Ok(Expr::List(exprs.into_iter().map(|s| Expr::String(s)).collect()))
+        let exprs = args
+            .into_iter()
+            .map(|f| f.try_into().and_then(|s: String| Ok(s.to_lowercase())))
+            .collect::<Result<Vec<String>, InterpError>>()?;
+        Ok(Expr::List(
+            exprs.into_iter().map(|s| Expr::String(s)).collect(),
+        ))
     } else {
-        Ok(Expr::String(args[0].clone().try_into().and_then(|s: String| Ok(s.to_lowercase()))?))
+        Ok(Expr::String(
+            args[0]
+                .clone()
+                .try_into()
+                .and_then(|s: String| Ok(s.to_lowercase()))?,
+        ))
     }
 }
 
 /// Concatenates strings together
 pub fn concat(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
-    let exprs = args.into_iter().map(|f| f.try_into()).collect::<Result<Vec<String>, InterpError>>()?;
+    let exprs = args
+        .into_iter()
+        .map(|f| f.try_into())
+        .collect::<Result<Vec<String>, InterpError>>()?;
     Ok(Expr::String(exprs.concat()))
 }

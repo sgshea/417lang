@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::functions::{add, concat, dbg, eq, mul, print, println, sub, to_lowercase, to_uppercase, zero};
 use crate::interpreter::Expr;
-use crate::functions::Function::RFunc;
+use crate::functions::Function::CoreFunction;
 use crate::error::InterpError;
 
 /// Environment of running interpreter
@@ -55,7 +55,7 @@ impl Environment {
 
     /// Adds function to builtins (bottom of stack)
     fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>) {
-        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(RFunc { name: name.to_string(), func }));
+        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(CoreFunction { name: name.to_string(), func }));
     }
 
     /// Bind a group of bindings to expressions that are passed in as a tuple pair

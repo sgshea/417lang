@@ -15,11 +15,11 @@ wasm = ["parser", "dep:wasm-bindgen"]
 
 [dependencies]
 # json parsing
-serde = "1.0"
-serde_json = "1.0"
+serde = "1.0.214"
+serde_json = "1.0.132"
 
 # binding functions for wasm
-wasm-bindgen = { version = "0.2.82", optional = true }
+wasm-bindgen = { version = "0.2.95", optional = true }
 
 # importing parser crate
 parser = { path = "../parser", optional = true}

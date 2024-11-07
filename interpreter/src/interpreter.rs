@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// All the types of the language
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Expr {
     // Integer value
     Integer(i64),
@@ -260,16 +260,36 @@ impl fmt::Display for Expr {
             Expr::Integer(val) => write!(fmt, "{}", val),
             Expr::Boolean(val) => write!(fmt, "{}", val),
             Expr::String(val) => write!(fmt, "{}", val),
-            Expr::List(list) => write!(fmt, "{:#?}", list),
+            Expr::List(list) => {
+                let values: Vec<_> = list.iter().map(|v| v.to_string()).collect();
+                write!(fmt, "{}", values.join(", "))
+            },
             Expr::Function(func) => match func {
-                Function::RFunc { name, func: _ } => write!(fmt, "function: {}", name),
-                Function::UFunc {
+                Function::CoreFunction { name, func: _ } => write!(fmt, "function: {}", name),
+                Function::Function {
                     name,
                     args: _,
                     func: _,
                     env: _,
                 } => write!(fmt, "function: {}", name),
             },
+        }
+    }
+}
+
+impl fmt::Debug for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expr::Integer(value) => write!(f, "Integer({})", value),
+            Expr::Boolean(value) => write!(f, "Boolean({})", value),
+            Expr::String(value) => write!(f, "String({})", value),
+            Expr::List(values) => {
+                let formatted_values: Vec<String> = values.iter()
+                    .map(|v| format!("{:?}", v))
+                    .collect();
+                write!(f, "List([{}])", formatted_values.join(", "))
+            },
+            Expr::Function(func) => write!(f, "Function({:?})", func),
         }
     }
 }
