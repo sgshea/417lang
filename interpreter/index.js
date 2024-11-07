@@ -33,9 +33,17 @@ require(['vs/editor/editor.main'], async function() {
     // Create the Monaco editor for input
     const editor = monaco.editor.create(document.getElementById('editor'), {
         value: snippets.add,
-        language: '',
+        language: 'javascript',
         automaticLayout: true,
         theme: 'vs-light',
+    });
+
+    monaco.languages.typescript.javascriptDefaults.setModeConfiguration({
+        completionItems: false
+    });
+
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: false
     });
 
     // Create the Monaco editor for output (read-only)

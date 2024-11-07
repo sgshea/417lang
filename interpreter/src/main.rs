@@ -9,13 +9,13 @@ pub fn main() {
 
         let input = io::read_to_string(io::stdin()).expect("Error reading from stdin.");
 
-        match interpret_string(&input, false) {
+        match interpret_string(&input, false, false) {
             Err(e) => {
                 eprintln!("{}", e);
                 std::process::exit(1);
             },
             Ok(expr) => {
-                println!("{}", expr);
+                println!("{}", expr.0);
                 std::process::exit(0);
             }
         }
@@ -35,13 +35,13 @@ pub fn main() {
                 std::process::exit(1);
             },
             Ok(ast) => {
-                match interpret_default(ast, false) {
+                match interpret_default(ast, false, false) {
                     Err(e) => {
                         eprintln!("{}", e);
                         std::process::exit(1);
                     }
                     Ok(expr) => {
-                        println!("{}", expr);
+                        println!("{}", expr.0);
                     }
                 }
             }

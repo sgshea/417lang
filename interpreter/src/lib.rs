@@ -6,26 +6,36 @@ use interpreter::Expr;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-pub mod environment;
-pub mod error;
+mod environment;
+mod error;
 mod functions;
-pub mod interpreter;
+mod interpreter;
 
 /// Interprets a string, assumed to be valid JSON input from a parser
 /// Returns either the interpreted expression or an error
-pub fn interpret_string(input: &str, store_output: bool) -> Result<Expr, InterpError> {
+pub fn interpret_string(
+    input: &str,
+    lexical_scope: bool,
+    store_output: bool,
+) -> Result<(Expr, Environment), InterpError> {
     // Interpret input
     match serde_json::from_str(input) {
         Err(_) => Err(InterpError::ParseError {
             message: "Unable to parse JSON into interpreter.".to_string(),
         }),
-        Ok(j) => interpret_default(j, store_output),
+        Ok(j) => interpret_default(j, lexical_scope, store_output),
     }
 }
 
-pub fn interpret_default(val: serde_json::Value, store_output: bool) -> Result<Expr, InterpError> {
-    let env = &mut Environment::default_environment(store_output);
-    Expr::eval(&val, env)
+/// Interprets the input JSON with the default environment
+/// Returns either an error or a tuple of the resulting expression and the resulting environment
+pub fn interpret_default(
+    val: serde_json::Value,
+    lexical_scope: bool,
+    store_output: bool,
+) -> Result<(Expr, Environment), InterpError> {
+    let mut env = Environment::default_environment(lexical_scope, store_output);
+    Ok((Expr::eval(&val, &mut env)?, env))
 }
 
 /// Interprets a string
@@ -33,9 +43,11 @@ pub fn interpret_default(val: serde_json::Value, store_output: bool) -> Result<E
 /// Expects the string to be valid JSON input
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub fn interpret_to_string(input: &str) -> String {
-    match interpret_string(input, true) {
+    match interpret_string(input, false, true) {
         Err(e) => return e.to_string(),
-        Ok(expr) => return expr.to_string(),
+        Ok((expr, env)) => {
+            env.get_output_string() + &expr.to_string()
+        }
     }
 }
 
@@ -60,9 +72,12 @@ pub fn interpret_with_parser_to_string(input: &str) -> String {
     use parser::parse;
     match parse("input", input) {
         Err(e) => return format!("{:?}", e.as_diagnostic()),
-        Ok(ast) => match interpret_default(ast, true) {
+        Ok(ast) => match interpret_default(ast, false, true) {
             Err(e) => return e.to_string(),
-            Ok(expr) => return expr.to_string(),
+            Ok((expr, env)) => {
+                // Output the resulting expression after any stored output
+                env.get_output_string() + &expr.to_string()
+            }
         },
     }
 }

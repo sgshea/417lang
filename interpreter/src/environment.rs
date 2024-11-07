@@ -6,11 +6,13 @@ use crate::functions::Function::RFunc;
 use crate::error::InterpError;
 
 /// Environment of running interpreter
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Environment {
     // Stack of environments, deepest is default, next is global, then local, etc.
     stack: Vec<HashMap<String, Expr>>,
-    // Flag for whether to store output instead of directly doing it
+    // Flag for whether to enable lexical scope or not
+    pub lexical_scope: bool,
+    // Flag for whether to store output instead of directly outputing it
     pub store_output: bool,
     // All output stored, able to be used for environments that do not support printing normally (WASM)
     output: Vec<String>,
@@ -18,9 +20,10 @@ pub struct Environment {
 
 impl Environment {
     /// Default environment of the interpreter with all builtins
-    pub fn default_environment(store_output: bool) -> Self {
+    pub fn default_environment(lexical_scope: bool, store_output: bool) -> Self {
         let mut env = Self {
             stack: vec![HashMap::new()],
+            lexical_scope,
             store_output,
             output: Vec::new()
         };
@@ -92,5 +95,10 @@ impl Environment {
     /// Get the output
     pub fn get_output(&self) -> &Vec<String> {
         &self.output
+    }
+
+    // Get the output concatenated together as a String
+    pub fn get_output_string(&self) -> String {
+        self.output.concat()
     }
 }

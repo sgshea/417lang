@@ -18,12 +18,13 @@ pub enum Function {
         name: String,
         args: Vec<String>,
         func: Value,
-        // TODO: lexical scope should store environment
+        // Copy of the environment from when this function was created (lexical scope)
+        env: Environment,
     },
 }
 
 /// Parse a function into a UFunc, without evaluating it
-pub fn parse_anonymous_function(val: &serde_json::Value) -> Result<Expr, InterpError> {
+pub fn parse_anonymous_function(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
     // We are in the "Lambda" object's value, which should have two list items, a parameters object and block object
     let [parameters, block] = match val.as_array() {
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
@@ -77,6 +78,7 @@ pub fn parse_anonymous_function(val: &serde_json::Value) -> Result<Expr, InterpE
         name: "Anonymous".to_string(),
         args: parameters,
         func: block.clone(),
+        env: env.clone(),
     }))
 }
 
@@ -95,18 +97,29 @@ pub fn function_application(
                     name,
                     args,
                     func,
+                    env: local_env,
                 } => {
                     if args.len() != rest.len() {
                         return Err(InterpError::ArgumentError { func: name.to_string(), expected: args.len(), got: rest.len() })
                     }
 
-                    return parse_block_with_bindings(
-                        &func,
-                        env,
-                        args.into_iter()
-                            .zip(rest.into_iter())
-                            .collect::<Vec<(&String, &Expr)>>(),
-                    )
+                    if env.lexical_scope {
+                        return parse_block_with_bindings(
+                            &func,
+                            env, // TODO: pass local_env
+                            args.into_iter()
+                                .zip(rest.into_iter())
+                                .collect::<Vec<(&String, &Expr)>>(),
+                        )
+                    } else {
+                        return parse_block_with_bindings(
+                            &func,
+                            env,
+                            args.into_iter()
+                                .zip(rest.into_iter())
+                                .collect::<Vec<(&String, &Expr)>>(),
+                        )
+                    }
                 }
             }
         } else {
@@ -182,7 +195,9 @@ pub fn print(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> 
 pub fn println(args: &[Expr], env: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
         if env.store_output {
-            env.add_output(&arg.to_string());
+            let str = &mut arg.to_string();
+            str.push_str("\n");
+            env.add_output(str);
         } else {
             println!("{}", arg);
         }
