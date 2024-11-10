@@ -4,12 +4,22 @@ authors = ["Sammy Shea", "sgshea@ncsu.edu"]
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Optional features, pass in "--feature "parser""
+# Additional dependencies should not be downloaded without a feature specified
 [features]
 parser = ["dep:parser"]
+wasm = ["parser", "dep:wasm-bindgen"]
 
 [dependencies]
 # json parsing
-serde = "1.0.210"
-serde_json = "1.0.128"
+serde = "1.0.214"
+serde_json = "1.0.132"
 
+# binding functions for wasm
+wasm-bindgen = { version = "0.2.95", optional = true }
+
+# importing parser crate
 parser = { path = "../parser", optional = true}

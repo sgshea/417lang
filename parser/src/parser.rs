@@ -1,21 +1,37 @@
+use miette::LabeledSpan;
 use serde_json::{json, Value};
 
-use crate::lexer::{Keyword, Token};
+use crate::{
+    error::ParseError,
+    lexer::{Keyword, LexToken, Token},
+};
 
 // Define a simple parser structure
-pub struct Parser<'a> {
-    tokens: &'a [Token],
+pub struct Parser<'a, T: LexToken> {
+    tokens: &'a [T],
     current: usize,
+
+    source_name: &'a str,
+    source: &'a str,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
-        Parser { tokens, current: 0 }
+impl<'a, T: LexToken> Parser<'a, T> {
+    pub fn new(source_name: &'a str, source: &'a str, tokens: &'a [T]) -> Self {
+        Parser {
+            tokens,
+            current: 0,
+            source_name,
+            source,
+        }
     }
 
     // Utility function to get the current token
     fn current_token(&self) -> &Token {
-        &self.tokens[self.current]
+        self.tokens[self.current].token()
+    }
+
+    fn current_source(&self) -> Option<usize> {
+        self.tokens[self.current].source()
     }
 
     // Utility function to move to the next token
@@ -34,74 +50,80 @@ impl<'a> Parser<'a> {
     }
 
     // Entry point for parsing a program (EXP := FORM | ATOM)
-    pub fn parse_program(&mut self) -> Value {
+    pub fn parse_program(&mut self) -> Result<Value, ParseError> {
         self.parse_exp()
     }
 
     // EXP := FORM | ATOM
-    fn parse_exp(&mut self) -> Value {
-        let mut expr = match self.current_token() {
+    fn parse_exp(&mut self) -> Result<Value, ParseError> {
+        let expr = match self.current_token() {
             Token::Identifier(_) | Token::Integer(_) | Token::String(_) => self.parse_atom(),
             Token::Keyword(_) => self.parse_form(),
             Token::OpenBrace => self.parse_block(),
-            _ => panic!("Unexpected token: {:?}", self.current_token()),
+            _ => {
+                let err = ParseError::new(
+                    &self.source_name,
+                    &self.source,
+                    (self.current_source().unwrap(), 1).into(),
+                    "Expected expression",
+                );
+                return Err(err);
+            }
         };
-    
+
         // If the next token is an OpenParen, treat it as a function application
         if let Token::OpenParen = self.current_token() {
-            expr = self.parse_application(expr);
+            return self.parse_application(expr?);
         }
-    
+
         expr
     }
 
     // FORM := APPLICATION | LAMBDA | COND | BLOCK | LET | DEFINITION
-    fn parse_form(&mut self) -> Value {
-        match self.current_token() {
-            Token::Keyword(kw) => {
-                match kw {
-                    Keyword::Def => self.parse_definition(),
-                    Keyword::Let => self.parse_let(),
-                    Keyword::Lambda => self.parse_lambda(),
-                    Keyword::Cond => self.parse_cond(),
-                }
-            }
+    fn parse_form(&mut self) -> Result<Value, ParseError> {
+        match &self.current_token() {
+            Token::Keyword(kw) => match kw {
+                Keyword::Def => self.parse_definition(),
+                Keyword::Let => self.parse_let(),
+                Keyword::Lambda => self.parse_lambda(),
+                Keyword::Cond => self.parse_cond(),
+            },
             _ => panic!("Unexpected form: {:?}", self.current_token()),
         }
     }
 
     // ATOM := IDENTIFIER | STRING | INTEGER
-    fn parse_atom(&mut self) -> Value {
+    fn parse_atom(&mut self) -> Result<Value, ParseError> {
         match self.current_token() {
             Token::Identifier(ref name) => {
                 let value = json!({ "Identifier": name });
                 self.next_token(); // Consume the identifier
-                value
+                Ok(value)
             }
             Token::Integer(ref num) => {
                 let value = json!(num);
                 self.next_token(); // Consume the integer
-                value
+                Ok(value)
             }
             Token::String(ref s) => {
                 let value = json!(s);
                 self.next_token(); // Consume the string
-                value
+                Ok(value)
             }
             _ => panic!("Unexpected atom: {:?}", self.current_token()),
         }
     }
 
     // APPLICATION := EXP '(' ARGLIST? ')'
-    fn parse_application(&mut self, func: Value) -> Value {
+    fn parse_application(&mut self, func: Value) -> Result<Value, ParseError> {
         self.consume(&Token::OpenParen); // Expect '('
-        // It is a flat vector with the function identifier as the first element
+                                         // It is a flat vector with the function identifier as the first element
         let mut args = vec![func];
 
         // If there are arguments, parse them
         if !self.consume(&Token::CloseParen) {
             loop {
-                args.push(self.parse_exp()); // Parse each argument
+                args.push(self.parse_exp()?);
                 if self.consume(&Token::CloseParen) {
                     break;
                 }
@@ -110,17 +132,17 @@ impl<'a> Parser<'a> {
         }
 
         // Construct the JSON for the function application
-        json!({ "Application": args })
+        Ok(json!({ "Application": args }))
     }
 
     // LAMBDA := ('lambda' | 'λ') '(' PARAMETERS ')' BLOCK
-    fn parse_lambda(&mut self) -> Value {
+    fn parse_lambda(&mut self) -> Result<Value, ParseError> {
         self.next_token(); // Consume 'lambda' or 'λ'
         self.consume(&Token::OpenParen); // Expect '('
         let params = self.parse_parameters(); // Parse parameters
         self.consume(&Token::CloseParen); // Expect ')'
-        let block = self.parse_block(); // Parse block
-        json!({ "Lambda": [params, block] })
+        let block = self.parse_block()?; // Parse block
+        Ok(json!({ "Lambda": [params, block] }))
     }
 
     // PARAMETERS := IDENTIFIER (',' IDENTIFIER)*
@@ -137,59 +159,84 @@ impl<'a> Parser<'a> {
     }
 
     // COND := 'cond' CLAUSE+
-    fn parse_cond(&mut self) -> Value {
+    fn parse_cond(&mut self) -> Result<Value, ParseError> {
         self.next_token(); // Consume 'cond'
         let mut clauses = vec![];
         while let Token::OpenParen = self.current_token() {
-            clauses.push(self.parse_clause());
+            clauses.push(self.parse_clause()?);
         }
-        json!({ "Cond": clauses })
+        Ok(json!({ "Cond": clauses }))
     }
 
     // CLAUSE := '(' EXP '=>' EXP ')'
-    fn parse_clause(&mut self) -> Value {
+    fn parse_clause(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::OpenParen); // Expect '('
-        let condition = self.parse_exp(); // Parse the condition
+        let condition = self.parse_exp()?; // Parse the condition
         self.consume(&Token::Arrow); // Expect '=>'
-        let result = self.parse_exp(); // Parse the result
+        let result = self.parse_exp()?; // Parse the result
         self.consume(&Token::CloseParen); // Expect ')'
-        json!({ "Clause": [condition, result] })
+        Ok(json!({ "Clause": [condition, result] }))
     }
 
     // BLOCK := '{' EXPLIST? '}'
-    fn parse_block(&mut self) -> Value {
-        self.consume(&Token::OpenBrace); // Expect '{'
+    fn parse_block(&mut self) -> Result<Value, ParseError> {
+        let current_source = self.current_source(); // used to construct error if needed
+        if !self.consume(&Token::OpenBrace) {
+            // Expect '{'
+            return Err(ParseError::new_full(
+                &self.source_name,
+                &self.source,
+                (current_source.unwrap(), 1).into(),
+                "Expected a block",
+                Some("Create a block with enclosing braces".to_string()),
+                vec![]
+            ));
+        }
         let mut exps = vec![];
-        while !self.consume(&Token::CloseBrace) { // Expect '}' to end
-            exps.push(self.parse_exp());
+        while !self.consume(&Token::CloseBrace) {
+            // Expect '}' to end
+            match self.parse_exp() {
+                Ok(exp) => exps.push(exp),
+                Err(mut e) => {
+                    // customize error message
+                    e.change_label("Found end of block");
+                    let start_block_span = LabeledSpan::at(
+                        current_source.expect("Expect block start source to exist"),
+                        "Found opening '{' here",
+                    );
+                    e.add_spans(&mut vec![start_block_span]);
+                    e.add_help("Close the block with a '}'");
+                    return Err(e);
+                }
+            }
             if self.consume(&Token::Semicolon) {
                 continue;
             }
         }
-        json!({ "Block": exps })
+        Ok(json!({ "Block": exps }))
     }
 
     // LET := 'let' IDENTIFIER EXP
-    fn parse_let(&mut self) -> Value {
+    fn parse_let(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
-        let identifier = self.parse_atom();
-        let exp = self.parse_exp();
-        json!({ "Let": [identifier, exp] })
+        let identifier = self.parse_atom()?;
+        let exp = self.parse_exp()?;
+        Ok(json!({ "Let": [identifier, exp] }))
     }
 
     // DEFINITION := 'def' IDENTIFIER EXP
-    fn parse_definition(&mut self) -> Value {
+    fn parse_definition(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Def));
-        let name = self.parse_atom();
-        let body = self.parse_exp();
-        json!({ "Def": [name, body] })
+        let name = self.parse_atom()?;
+        let body = self.parse_exp()?;
+        Ok(json!({ "Def": [name, body] }))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn parser() {
         let tokens = vec![
@@ -231,8 +278,9 @@ mod tests {
             Token::EOF,
         ];
 
-        let mut parser = Parser::new(&tokens);
-        let ast = parser.parse_program();
+        // passing in empty input (we don't expect errors for this test anyway)
+        let mut parser = Parser::new("", "", &tokens);
+        let ast = parser.parse_program().unwrap();
 
         let output = r#"
         {"Def":[{"Identifier": "fact"},

@@ -1,22 +1,31 @@
 use std::collections::HashMap;
 
-use crate::functions::{add, dbg, eq, mul, print, println, sub, zero};
+use crate::functions::{add, concat, dbg, eq, mul, print, println, sub, to_lowercase, to_uppercase, zero};
 use crate::interpreter::Expr;
-use crate::functions::Function::RFunc;
+use crate::functions::Function::CoreFunction;
 use crate::error::InterpError;
 
 /// Environment of running interpreter
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Environment {
     // Stack of environments, deepest is default, next is global, then local, etc.
     stack: Vec<HashMap<String, Expr>>,
+    // Flag for whether to enable lexical scope or not (default true)
+    pub lexical_scope: bool,
+    // Flag for whether to store output instead of directly outputing it
+    pub store_output: bool,
+    // All output stored, able to be used for environments that do not support printing normally (WASM)
+    output: Vec<String>,
 }
 
 impl Environment {
     /// Default environment of the interpreter with all builtins
-    pub fn default_environment() -> Self {
+    pub fn default_environment(lexical_scope: bool, store_output: bool) -> Self {
         let mut env = Self {
-            stack: vec![HashMap::new()]
+            stack: vec![HashMap::new()],
+            lexical_scope,
+            store_output,
+            output: Vec::new()
         };
 
         env.add_builtin_func("print", print);
@@ -27,6 +36,9 @@ impl Environment {
         env.add_builtin_func("sub", sub);
         env.add_builtin_func("mul", mul);
         env.add_builtin_func("zero?", zero);
+        env.add_builtin_func("to_uppercase", to_uppercase);
+        env.add_builtin_func("to_lowercase", to_lowercase);
+        env.add_builtin_func("concat", concat);
         env.add_builtin("x", Expr::Integer(10));
         env.add_builtin("v", Expr::Integer(5));
         env.add_builtin("i", Expr::Integer(1));
@@ -42,8 +54,8 @@ impl Environment {
     }
 
     /// Adds function to builtins (bottom of stack)
-    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr]) -> Result<Expr, InterpError>) {
-        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(RFunc { name: name.to_string(), func }));
+    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>) {
+        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(CoreFunction { name: name.to_string(), func }));
     }
 
     /// Bind a group of bindings to expressions that are passed in as a tuple pair
@@ -51,7 +63,7 @@ impl Environment {
     pub fn bind(&mut self, pairs: Vec<(&String, &Expr)>) {
         let local_env: &mut HashMap<String, Expr> = self.stack.last_mut().expect("Environment should not be empty!");
         for (binding, expr) in pairs {
-            local_env.insert(binding.to_string(), expr.clone().clone());
+            local_env.insert(binding.to_string(), expr.clone());
         }
     }
 
@@ -73,5 +85,20 @@ impl Environment {
             }
         }
         None
+    }
+
+    /// Add new element to output
+    pub fn add_output(&mut self, output: &str) {
+        self.output.push(output.to_string());
+    }
+
+    /// Get the output
+    pub fn get_output(&self) -> &Vec<String> {
+        &self.output
+    }
+
+    // Get the output concatenated together as a String
+    pub fn get_output_string(&self) -> String {
+        self.output.concat()
     }
 }
