@@ -1,4 +1,4 @@
-import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./pkg/interpreter.js";
+import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./interpreter/pkg/interpreter.js";
 require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' }});
 
 const snippets = {
@@ -23,6 +23,23 @@ const snippets = {
     let hello "hello";
     let world "world";
     concat(hello, " ", to_uppercase(world))
+}
+`,
+    cp5ex3:
+`// Under dynamic scope rules, 'incr' is applied in an environment
+// in which 'amt' has a global binding, and is bound to the value 1.
+//
+// The result here should be 6 under dynamic scope.
+//
+// Under lexical scope rules, applying 'incr' throws an error,
+// because there is no binding for 'amt' in the environment in
+// which 'incr' is bound (i.e. where the RHS lambda expression
+// is evaluated).
+//
+{
+  let incr lambda(n) {add(amt,n)};
+  let amt 1;
+  incr(5)
 }
 `
 };
@@ -78,12 +95,14 @@ require(['vs/editor/editor.main'], async function() {
         const useParse = document.getElementById('useParseCheckbox').checked;
         const useInterpret = document.getElementById('useInterpretCheckbox').checked;
 
+        const useLexical = document.getElementById('useLexicalScope').checked;
+
         if (useParse && useInterpret) {
-            interpretResult = interpret_with_parser_to_string(code);
+            interpretResult = interpret_with_parser_to_string(code, useLexical);
         } else if (useParse) {
             interpretResult = parse_to_string(code);
         } else if (useInterpret) {
-            interpretResult = interpret_to_string(code);
+            interpretResult = interpret_to_string(code, useLexical);
         } else {
             interpretResult = "Please select at least one option.";
         }
