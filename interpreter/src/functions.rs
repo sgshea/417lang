@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::{
     environment::Environment,
     error::InterpError,
-    interpreter::{parse_block_with_bindings, Expr},
+    interpreter::{interpret_block_with_bindings, Expr},
 };
 
 #[derive(PartialEq, Eq, Clone)]
@@ -132,16 +132,17 @@ pub fn function_application(
                         });
                     }
 
+                    // On lexical scope (default), functions use environment of where the function was originating from.
                     if env.lexical_scope {
-                        return parse_block_with_bindings(
+                        return interpret_block_with_bindings(
                             &func,
-                            env, // TODO: pass local_env
+                            &mut local_env.clone(),
                             args.into_iter()
                                 .zip(rest.into_iter())
                                 .collect::<Vec<(&String, &Expr)>>(),
                         );
                     } else {
-                        return parse_block_with_bindings(
+                        return interpret_block_with_bindings(
                             &func,
                             env,
                             args.into_iter()

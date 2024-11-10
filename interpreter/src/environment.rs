@@ -10,7 +10,7 @@ use crate::error::InterpError;
 pub struct Environment {
     // Stack of environments, deepest is default, next is global, then local, etc.
     stack: Vec<HashMap<String, Expr>>,
-    // Flag for whether to enable lexical scope or not
+    // Flag for whether to enable lexical scope or not (default true)
     pub lexical_scope: bool,
     // Flag for whether to store output instead of directly outputing it
     pub store_output: bool,
@@ -63,7 +63,7 @@ impl Environment {
     pub fn bind(&mut self, pairs: Vec<(&String, &Expr)>) {
         let local_env: &mut HashMap<String, Expr> = self.stack.last_mut().expect("Environment should not be empty!");
         for (binding, expr) in pairs {
-            local_env.insert(binding.to_string(), expr.clone().clone());
+            local_env.insert(binding.to_string(), expr.clone());
         }
     }
 

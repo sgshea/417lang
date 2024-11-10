@@ -23,7 +23,3 @@ wasm-bindgen = { version = "0.2.95", optional = true }
 
 # importing parser crate
 parser = { path = "../parser", optional = true}
-
-[profile.release]
-# optimize for small code
-opt-level = "s"

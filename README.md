@@ -33,3 +33,6 @@ Commands to build for wasm (specific to my machine for now)
 ```
 ~/.cargo/bin/wasm-pack build --target web --features "wasm"
 ```
+**GitHub Pages** at https://pages.github.ncsu.edu/sgshea/417-interp/
+- Serves compiled wasm build from the `pages` branch
+    - May not always be up to date
