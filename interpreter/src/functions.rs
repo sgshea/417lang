@@ -187,10 +187,36 @@ pub fn sub(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     ))
 }
 
-// Takes in any amount of arguments and multiplys to the first argument
+// Takes in any amount of arguments and multiplies by the first argument
 pub fn mul(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(ints.into_iter().product()))
+}
+
+// divides first argument by second
+pub fn div(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
+    let ints = exprs_into_i64(args)?;
+    if ints.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "div".to_string(),
+            expected: 2,
+            got: ints.len(),
+        });
+    }
+    Ok(Expr::Integer(ints[0] / ints[1]))
+}
+
+// gets remainder of first argument by second
+pub fn rem(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
+    let ints = exprs_into_i64(args)?;
+    if ints.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "rem".to_string(),
+            expected: 2,
+            got: ints.len(),
+        });
+    }
+    Ok(Expr::Integer(ints[0] % ints[1]))
 }
 
 pub fn zero(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
@@ -295,4 +321,28 @@ pub fn concat(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError
         .map(|f| f.try_into())
         .collect::<Result<Vec<String>, InterpError>>()?;
     Ok(Expr::String(exprs.concat()))
+}
+
+/// Checks if a string contains a character
+/// First argument is the character to check if the rest of the arguments contain
+pub fn contains(args: &[Expr], _env: &mut Environment) -> Result<Expr, InterpError> {
+    let exprs = args
+        .into_iter()
+        .map(|f| f.try_into())
+        .collect::<Result<Vec<String>, InterpError>>()?;
+
+    let first_arg = exprs.first();
+    let rest = &exprs[1..];
+    if first_arg.is_none() || rest.len() == 0 {
+        return Err(InterpError::ArgumentError {
+            func: "contains".to_string(),
+            expected: 2,
+            got: 0,
+        });
+    } else {
+        let first_arg = first_arg.unwrap();
+        return Ok(Expr::Boolean(
+            !rest.iter().any(|ele| !ele.contains(first_arg)),
+        ));
+    }
 }
