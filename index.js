@@ -1,34 +1,30 @@
 import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./interpreter/pkg/interpreter.js";
 require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' }});
 
-const snippets = {
-    add:
-`{
-    add(1, 2)
+let snippets = {};
+
+// List of snippet files
+const snippetFiles = [
+    'snippets/add.417',
+    'snippets/factorial.417',
+    'snippets/helloworld.417',
+    'snippets/cp5ex3.417',
+];
+
+async function loadSnippets() {
+    const snippetPromises = snippetFiles.map(async (file) => {
+        const response = await fetch(file);
+        const snippetContent = await response.text();
+        const snippetName = file.split('/').pop().replace('.417', ''); // Get the file name without extension
+        snippets[snippetName] = snippetContent; // Add to snippets object
+    });
+
+    await Promise.all(snippetPromises);
 }
-`,
-    fact:
-`{
-    // Factorial function
-    def fact λ(n) {
-        cond 
-            (zero?(n) => 1) 
-            (true => mul(n, fact(sub(n, 1))))
-    };
-    fact(10)
-}`,
-    helloworld:
-`{
-    // Showcasing string functions
-    let hello "hello";
-    let world "world";
-    concat(hello, " ", to_uppercase(world))
-}
-`
-};
 
 require(['vs/editor/editor.main'], async function() {
     await init();
+    await loadSnippets();
 
     // Create the Monaco editor for input
     const editor = monaco.editor.create(document.getElementById('editor'), {
@@ -78,12 +74,14 @@ require(['vs/editor/editor.main'], async function() {
         const useParse = document.getElementById('useParseCheckbox').checked;
         const useInterpret = document.getElementById('useInterpretCheckbox').checked;
 
+        const useLexical = document.getElementById('useLexicalScope').checked;
+
         if (useParse && useInterpret) {
-            interpretResult = interpret_with_parser_to_string(code);
+            interpretResult = interpret_with_parser_to_string(code, useLexical);
         } else if (useParse) {
             interpretResult = parse_to_string(code);
         } else if (useInterpret) {
-            interpretResult = interpret_to_string(code);
+            interpretResult = interpret_to_string(code, useLexical);
         } else {
             interpretResult = "Please select at least one option.";
         }

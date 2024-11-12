@@ -42,7 +42,7 @@ impl Expr {
                     .map(|val| Expr::eval(val, env))
                     .collect::<Result<Vec<Expr>, InterpError>>()?,
             )),
-            Value::Object(obj) => parse_object(obj, env),
+            Value::Object(obj) => interpret_object(obj, env),
             _ => Err(InterpError::ParseError {
                 message: format!(
                     "{} is not an implemented type! It is of JSON type {:?}",
@@ -109,8 +109,8 @@ impl TryInto<String> for &Expr {
     type Error = InterpError;
 }
 
-/// Parse a JSON object, looking for the keys that correspond to certain behaviors
-fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr, InterpError> {
+/// Interpret a JSON object, looking for the keys that correspond to certain behaviors
+fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr, InterpError> {
     // First see if there is an identifier
     if let Some(binding) = obj.get("Identifier").and_then(|val| val.as_str()) {
         return env
@@ -122,7 +122,7 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
 
     // Handle blocks
     if let Some(key) = obj.get("Block") {
-        return parse_block(key, env);
+        return interpret_block(key, env);
     }
 
     // Parse a function definition
@@ -171,11 +171,11 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
     }
 
     if let Some(arr) = obj.get("Let") {
-        return parse_let(arr, env);
+        return interpret_let(arr, env);
     }
 
     if let Some(arr) = obj.get("Def") {
-        return parse_let(arr, env);
+        return interpret_let(arr, env);
     }
 
     Err(InterpError::ParseError {
@@ -186,8 +186,8 @@ fn parse_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr,
     })
 }
 
-/// Parses a block expression, handling creating a new local environment on the environment's stack
-fn parse_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+/// Interpret a block expression, handling creating a new local environment on the environment's stack
+fn interpret_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
     env.create_local_env();
 
     let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, env)? {
@@ -203,9 +203,9 @@ fn parse_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, I
     res
 }
 
-/// Parses a block expression, handling creating a new local environment on the environment's stack
+/// Interpret a block expression, handling creating a new local environment on the environment's stack
 /// Special function to evaluate the block with some initial bindings (such as a function's block with arguments)
-pub fn parse_block_with_bindings(
+pub fn interpret_block_with_bindings(
     val: &serde_json::Value,
     env: &mut Environment,
     bindings: Vec<(&String, &Expr)>,
@@ -226,7 +226,7 @@ pub fn parse_block_with_bindings(
     res
 }
 
-fn parse_let(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+fn interpret_let(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
     let [identifier, value] = match val.as_array() {
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
         _ => {

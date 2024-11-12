@@ -5,9 +5,10 @@
  * Returns the result of interpreting in string form
  * Expects the string to be valid JSON input
  * @param {string} input
+ * @param {boolean} lexical_scope
  * @returns {string}
  */
-export function interpret_to_string(input: string): string;
+export function interpret_to_string(input: string, lexical_scope: boolean): string;
 /**
  * Parses a string
  * Returns the result of parsing in string form
@@ -20,21 +21,23 @@ export function parse_to_string(input: string): string;
  * Returns the result of parsing and interpreting in string form
  * Same as above but exported for WASM
  * @param {string} input
+ * @param {boolean} lexical_scope
  * @returns {string}
  */
-export function interpret_with_parser_to_string(input: string): string;
+export function interpret_with_parser_to_string(input: string, lexical_scope: boolean): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly interpret_to_string: (a: number, b: number, c: number) => void;
-  readonly parse_to_string: (a: number, b: number, c: number) => void;
-  readonly interpret_with_parser_to_string: (a: number, b: number, c: number) => void;
-  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly interpret_to_string: (a: number, b: number, c: number) => Array;
+  readonly parse_to_string: (a: number, b: number) => Array;
+  readonly interpret_with_parser_to_string: (a: number, b: number, c: number) => Array;
+  readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_start: () => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

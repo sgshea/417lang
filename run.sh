@@ -24,5 +24,8 @@ else
   command="cargo run -q -p interpreter --release"
 fi
 
+# Shift arguments so that we can pass additional args
+shift
+
 # Execute the command
-$command
+eval "$command" "$@"

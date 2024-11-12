@@ -42,8 +42,8 @@ pub fn interpret_default(
 /// Returns the result of interpreting in string form
 /// Expects the string to be valid JSON input
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-pub fn interpret_to_string(input: &str) -> String {
-    match interpret_string(input, false, true) {
+pub fn interpret_to_string(input: &str, lexical_scope: bool) -> String {
+    match interpret_string(input, lexical_scope, true) {
         Err(e) => return e.to_string(),
         Ok((expr, env)) => {
             env.get_output_string() + &expr.to_string()
@@ -68,11 +68,11 @@ pub fn parse_to_string(input: &str) -> String {
 /// Same as above but exported for WASM
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn interpret_with_parser_to_string(input: &str) -> String {
+pub fn interpret_with_parser_to_string(input: &str, lexical_scope: bool) -> String {
     use parser::parse;
     match parse("input", input) {
         Err(e) => return format!("{:?}", e.as_diagnostic()),
-        Ok(ast) => match interpret_default(ast, false, true) {
+        Ok(ast) => match interpret_default(ast, lexical_scope, true) {
             Err(e) => return e.to_string(),
             Ok((expr, env)) => {
                 // Output the resulting expression after any stored output
