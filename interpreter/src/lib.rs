@@ -1,6 +1,5 @@
-use environment::Environment;
 use error::InterpError;
-use interpreter::Expr;
+use interpreter::{Expr, Interpreter};
 
 // WASM dependencies and functions locked behind "wasm" feature so that the crate does not need to be downloaded on normal runs
 #[cfg(feature = "wasm")]
@@ -17,7 +16,7 @@ pub fn interpret_string(
     input: &str,
     lexical_scope: bool,
     store_output: bool,
-) -> Result<(Expr, Environment), InterpError> {
+) -> Result<(Expr, Interpreter), InterpError> {
     // Interpret input
     match serde_json::from_str(input) {
         Err(_) => Err(InterpError::ParseError {
@@ -33,8 +32,8 @@ pub fn interpret_default(
     val: serde_json::Value,
     lexical_scope: bool,
     store_output: bool,
-) -> Result<(Expr, Environment), InterpError> {
-    let mut env = Environment::default_environment(lexical_scope, store_output);
+) -> Result<(Expr, Interpreter), InterpError> {
+    let mut env = Interpreter::new(lexical_scope, store_output);
     Ok((Expr::eval(&val, &mut env)?, env))
 }
 
@@ -46,7 +45,8 @@ pub fn interpret_to_string(input: &str, lexical_scope: bool) -> String {
     match interpret_string(input, lexical_scope, true) {
         Err(e) => return e.to_string(),
         Ok((expr, env)) => {
-            env.get_output_string() + &expr.to_string()
+            let output = env.global.output.concat();
+            output + &expr.to_string()
         }
     }
 }
@@ -76,7 +76,8 @@ pub fn interpret_with_parser_to_string(input: &str, lexical_scope: bool) -> Stri
             Err(e) => return e.to_string(),
             Ok((expr, env)) => {
                 // Output the resulting expression after any stored output
-                env.get_output_string() + &expr.to_string()
+                let output = env.global.output.concat();
+                output + &expr.to_string()
             }
         },
     }

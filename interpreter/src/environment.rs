@@ -1,31 +1,39 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use crate::functions::{add, concat, contains, dbg, div, eq, mul, print, println, rem, sub, to_lowercase, to_uppercase, zero};
-use crate::interpreter::Expr;
-use crate::functions::Function::CoreFunction;
 use crate::error::InterpError;
+use crate::functions::Function::CoreFunction;
+use crate::functions::{
+    add, concat, contains, dbg, div, eq, mul, print, println, rem, sub, to_lowercase, to_uppercase,
+    zero,
+};
+use crate::interpreter::Expr;
 
 /// Environment of running interpreter
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Environment {
+pub struct LocalEnvironment {
     // Stack of environments, deepest is default, next is global, then local, etc.
-    stack: Vec<HashMap<String, Expr>>,
+    variables: HashMap<String, Expr>,
+    parent: Option<Rc<RefCell<LocalEnvironment>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Environment {
     // Flag for whether to enable lexical scope or not (default true)
     pub lexical_scope: bool,
     // Flag for whether to store output instead of directly outputing it
     pub store_output: bool,
     // All output stored, able to be used for environments that do not support printing normally (WASM)
-    output: Vec<String>,
+    pub output: Vec<String>,
 }
 
-impl Environment {
+impl LocalEnvironment {
     /// Default environment of the interpreter with all builtins
-    pub fn default_environment(lexical_scope: bool, store_output: bool) -> Self {
+    pub fn default_environment() -> Self {
         let mut env = Self {
-            stack: vec![HashMap::new()],
-            lexical_scope,
-            store_output,
-            output: Vec::new()
+            variables: HashMap::new(),
+            parent: None,
         };
 
         env.add_builtin_func("print", print);
@@ -51,57 +59,62 @@ impl Environment {
         env
     }
 
+    pub fn from_parent(parent: Rc<RefCell<Self>>) -> Rc<RefCell<LocalEnvironment>> {
+        Rc::new(RefCell::new(Self {
+            variables: HashMap::new(),
+            parent: Some(parent),
+        }))
+    }
+
+    pub fn return_parent(&self) -> Option<Rc<RefCell<LocalEnvironment>>> {
+        self.parent.clone()
+    }
+
     /// Adds builtin item
     fn add_builtin(&mut self, name: &str, expr: Expr) {
-        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), expr);
+        self.variables.insert(name.to_string(), expr);
     }
 
     /// Adds function to builtins (bottom of stack)
-    fn add_builtin_func(&mut self, name: &str, func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>) {
-        self.stack.first_mut().expect("Stack should be initialized!").insert(name.to_string(), Expr::Function(CoreFunction { name: name.to_string(), func }));
+    fn add_builtin_func(
+        &mut self,
+        name: &str,
+        func: fn(&[Expr], &mut LocalEnvironment, &mut Environment) -> Result<Expr, InterpError>,
+    ) {
+        self.variables.insert(
+            name.to_string(),
+            Expr::Function(CoreFunction {
+                name: name.to_string(),
+                func,
+            }),
+        );
     }
 
     /// Bind a group of bindings to expressions that are passed in as a tuple pair
     /// Adds to top environment of the stack
     pub fn bind(&mut self, pairs: Vec<(&String, &Expr)>) {
-        let local_env: &mut HashMap<String, Expr> = self.stack.last_mut().expect("Environment should not be empty!");
+        let local_env: &mut HashMap<String, Expr> = &mut self.variables;
         for (binding, expr) in pairs {
             local_env.insert(binding.to_string(), expr.clone());
         }
     }
 
-    /// Creates a new local environment on the top of the stack
-    pub fn create_local_env(&mut self) {
-        self.stack.push(HashMap::new());
-    }
-
-    /// Removes the most local environment, returining it
-    pub fn pop_top_env(&mut self) -> Option<HashMap<String, Expr>> {
-        self.stack.pop()
-    }
-
     /// Look for binding in local (top) environment first, then search deeper
-    pub fn lookup(&mut self, binding: &str) -> Option<Expr> {
-        for env in (&self.stack).into_iter().rev() {
-            if let Some(expr) = env.get(binding) {
-                return Some(expr.clone())
-            }
+    pub fn lookup(&self, binding: &str) -> Option<Expr> {
+        if let Some(expr) = self.variables.get(binding) {
+            return Some(expr.clone());
         }
+
+        if let Some(parent) = &self.parent {
+            return parent.borrow().lookup(binding);
+        }
+
         None
     }
+}
 
-    /// Add new element to output
+impl Environment {
     pub fn add_output(&mut self, output: &str) {
         self.output.push(output.to_string());
-    }
-
-    /// Get the output
-    pub fn get_output(&self) -> &Vec<String> {
-        &self.output
-    }
-
-    // Get the output concatenated together as a String
-    pub fn get_output_string(&self) -> String {
-        self.output.concat()
     }
 }

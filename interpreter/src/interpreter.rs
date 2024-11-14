@@ -1,12 +1,47 @@
-use std::fmt;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 use serde_json::{Map, Value};
 
 use crate::{
-    environment::Environment,
+    environment::{Environment, LocalEnvironment},
     error::InterpError,
     functions::{function_application, parse_anonymous_function, Function},
 };
+
+/// Holds current and global environments
+pub struct Interpreter {
+    pub global: Environment,
+    pub local: Rc<RefCell<LocalEnvironment>>,
+}
+
+impl Interpreter {
+    pub fn new(lexical_scope: bool, store_output: bool) -> Self {
+        let global = Environment {
+            lexical_scope,
+            store_output,
+            output: Vec::new(),
+        };
+        let local = Rc::new(RefCell::new(LocalEnvironment::default_environment()));
+        Self { global, local }
+    }
+
+    /// Enters a new, blank, local environment
+    /// Returns the current local environment
+    pub fn enter_new_local(&mut self) -> Rc<RefCell<LocalEnvironment>> {
+        let old_local = self.local.clone();
+        let new_local = LocalEnvironment::from_parent(old_local.clone());
+        self.local = new_local;
+        old_local
+    }
+
+    /// Enter specific local environment (i.e. a function's saved environment)
+    /// Returns the current local environment
+    pub fn enter_local(&mut self, local: Rc<RefCell<LocalEnvironment>>) -> Rc<RefCell<LocalEnvironment>> {
+        let old_local = self.local.clone();
+        self.local = local;
+        old_local
+    }
+}
 
 /// All the types of the language
 #[derive(PartialEq, Eq, Clone)]
@@ -24,7 +59,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn eval(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+    pub fn eval(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
         match val {
             Value::Number(num) => num
                 .as_i64()
@@ -39,10 +74,10 @@ impl Expr {
             }
             Value::Array(arr) => Ok(Expr::List(
                 arr.into_iter()
-                    .map(|val| Expr::eval(val, env))
+                    .map(|val| Expr::eval(val, interpreter))
                     .collect::<Result<Vec<Expr>, InterpError>>()?,
             )),
-            Value::Object(obj) => interpret_object(obj, env),
+            Value::Object(obj) => interpret_object(obj, interpreter),
             _ => Err(InterpError::ParseError {
                 message: format!(
                     "{} is not an implemented type! It is of JSON type {:?}",
@@ -110,10 +145,12 @@ impl TryInto<String> for &Expr {
 }
 
 /// Interpret a JSON object, looking for the keys that correspond to certain behaviors
-fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<Expr, InterpError> {
+fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
     // First see if there is an identifier
     if let Some(binding) = obj.get("Identifier").and_then(|val| val.as_str()) {
-        return env
+        return interpreter
+            .local
+            .borrow()
             .lookup(binding)
             .ok_or_else(|| InterpError::UndefinedError {
                 symbol: binding.to_string(),
@@ -122,17 +159,17 @@ fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<E
 
     // Handle blocks
     if let Some(key) = obj.get("Block") {
-        return interpret_block(key, env);
+        return interpret_block(key, interpreter);
     }
 
     // Parse a function definition
     if let Some(lambda) = obj.get("Lambda") {
-        return parse_anonymous_function(lambda, env);
+        return parse_anonymous_function(lambda, None, interpreter);
     }
 
     // Apply a function
     if let Some(arr) = obj.get("Application") {
-        return function_application(arr, env);
+        return function_application(arr, interpreter);
     }
 
     // Handle conditional clauses
@@ -150,11 +187,11 @@ fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<E
                         });
                     };
                     // Store condition result
-                    let condition = Expr::eval(condition, env)?;
+                    let condition = Expr::eval(condition, interpreter)?;
                     // If it is a boolean that is true, we evaluate the expression
                     if let Expr::Boolean(b) = condition {
                         if b {
-                            return Expr::eval(expr, env);
+                            return Expr::eval(expr, interpreter);
                         }
                     } else {
                         return Err(InterpError::TypeError {
@@ -171,11 +208,11 @@ fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<E
     }
 
     if let Some(arr) = obj.get("Let") {
-        return interpret_let(arr, env);
+        return interpret_let(arr, interpreter);
     }
 
     if let Some(arr) = obj.get("Def") {
-        return interpret_let(arr, env);
+        return interpret_let(arr, interpreter);
     }
 
     Err(InterpError::ParseError {
@@ -187,10 +224,10 @@ fn interpret_object(obj: &Map<String, Value>, env: &mut Environment) -> Result<E
 }
 
 /// Interpret a block expression, handling creating a new local environment on the environment's stack
-fn interpret_block(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
-    env.create_local_env();
+fn interpret_block(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+    let old_local = interpreter.enter_new_local();
 
-    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, env)? {
+    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, interpreter)? {
         // Return false for empty block
         Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
     } else {
@@ -199,7 +236,8 @@ fn interpret_block(val: &serde_json::Value, env: &mut Environment) -> Result<Exp
         })
     };
 
-    env.pop_top_env();
+    // Pop top local environment as we exit block
+    interpreter.local = old_local;
     res
 }
 
@@ -207,13 +245,13 @@ fn interpret_block(val: &serde_json::Value, env: &mut Environment) -> Result<Exp
 /// Special function to evaluate the block with some initial bindings (such as a function's block with arguments)
 pub fn interpret_block_with_bindings(
     val: &serde_json::Value,
-    env: &mut Environment,
+    interpreter: &mut Interpreter,
     bindings: Vec<(&String, &Expr)>,
 ) -> Result<Expr, InterpError> {
-    env.create_local_env();
-    env.bind(bindings);
+    let old_local = interpreter.enter_new_local();
+    interpreter.local.borrow_mut().bind(bindings);
 
-    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, env)? {
+    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, interpreter)? {
         // Return false for empty block
         Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
     } else {
@@ -222,11 +260,11 @@ pub fn interpret_block_with_bindings(
         })
     };
 
-    env.pop_top_env();
+    interpreter.local = old_local;
     res
 }
 
-fn interpret_let(val: &serde_json::Value, env: &mut Environment) -> Result<Expr, InterpError> {
+fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
     let [identifier, value] = match val.as_array() {
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
         _ => {
@@ -246,10 +284,10 @@ fn interpret_let(val: &serde_json::Value, env: &mut Environment) -> Result<Expr,
             };
         })?;
 
-    let ident_val = Expr::eval(value, env)?;
+    let ident_val = Expr::eval(value, interpreter)?;
 
     // Place into our environment
-    env.bind(vec![(&ident_name.to_string(), &ident_val)]);
+    interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
 
     return Ok(ident_val);
 }
@@ -263,7 +301,7 @@ impl fmt::Display for Expr {
             Expr::List(list) => {
                 let values: Vec<_> = list.iter().map(|v| v.to_string()).collect();
                 write!(fmt, "{}", values.join(", "))
-            },
+            }
             Expr::Function(func) => match func {
                 Function::CoreFunction { name, func: _ } => write!(fmt, "function: {}", name),
                 Function::Function {
@@ -284,11 +322,10 @@ impl fmt::Debug for Expr {
             Expr::Boolean(value) => write!(f, "Boolean({})", value),
             Expr::String(value) => write!(f, "String({})", value),
             Expr::List(values) => {
-                let formatted_values: Vec<String> = values.iter()
-                    .map(|v| format!("{:?}", v))
-                    .collect();
+                let formatted_values: Vec<String> =
+                    values.iter().map(|v| format!("{:?}", v)).collect();
                 write!(f, "List([{}])", formatted_values.join(", "))
-            },
+            }
             Expr::Function(func) => write!(f, "Function({:?})", func),
         }
     }
@@ -300,7 +337,7 @@ mod tests {
 
     #[test]
     fn parse_valid_integer() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment(false, false);
+        let mut env = Interpreter::new(true, false);
         assert_eq!(
             Expr::Integer(12),
             Expr::eval(&serde_json::from_str("12").unwrap(), &mut env)?
@@ -315,7 +352,7 @@ mod tests {
 
     #[test]
     fn parse_invalid_integer() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment(false, false);
+        let mut env = Interpreter::new(true, false);
         // Construct numbers larger and smaller than the range supported
         let big_num = i64::MAX as u64 + 10;
         // (Creating a string version manually less than i64::MIN)
@@ -348,7 +385,7 @@ mod tests {
 
     #[test]
     fn parse_valid_string() -> Result<(), InterpError> {
-        let mut env = Environment::default_environment(false, false);
+        let mut env = Interpreter::new(true, false);
         assert_eq!(
             Expr::String("rust".to_string()),
             Expr::eval(&serde_json::from_str("\"rust\"").unwrap(), &mut env)?
