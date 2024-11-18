@@ -2,7 +2,7 @@ use miette::LabeledSpan;
 use serde_json::{json, Value};
 
 use crate::{
-    error::ParseError,
+    error::{ParseError, ParseErrorType},
     lexer::{Keyword, LexToken, Token},
 };
 
@@ -62,6 +62,7 @@ impl<'a, T: LexToken> Parser<'a, T> {
             Token::OpenBrace => self.parse_block(),
             _ => {
                 let err = ParseError::new(
+                    crate::error::ParseErrorType::BLOCK,
                     &self.source_name,
                     &self.source,
                     (self.current_source().unwrap(), 1).into(),
@@ -95,7 +96,7 @@ impl<'a, T: LexToken> Parser<'a, T> {
     // ATOM := IDENTIFIER | STRING | INTEGER
     fn parse_atom(&mut self) -> Result<Value, ParseError> {
         match self.current_token().clone() {
-            Token::Identifier(ref name) => self.parse_assignment(name),
+            Token::Identifier(_) => self.parse_assignment(),
             Token::Integer(ref num) => {
                 let value = json!(num);
                 self.next_token(); // Consume the integer
@@ -180,6 +181,7 @@ impl<'a, T: LexToken> Parser<'a, T> {
         if !self.consume(&Token::OpenBrace) {
             // Expect '{'
             return Err(ParseError::new_full(
+                crate::error::ParseErrorType::BLOCK,
                 &self.source_name,
                 &self.source,
                 (current_source.unwrap(), 1).into(),
@@ -194,14 +196,19 @@ impl<'a, T: LexToken> Parser<'a, T> {
             match self.parse_exp() {
                 Ok(exp) => exps.push(exp),
                 Err(mut e) => {
-                    // customize error message
-                    e.change_label("Found end of block");
-                    let start_block_span = LabeledSpan::at(
-                        current_source.expect("Expect block start source to exist"),
-                        "Found opening '{' here",
-                    );
-                    e.add_spans(&mut vec![start_block_span]);
-                    e.add_help("Close the block with a '}'");
+                    match e.error_type {
+                        ParseErrorType::BLOCK => {
+                            // customize error message
+                            e.change_label("Found end of block");
+                            let start_block_span = LabeledSpan::at(
+                                current_source.expect("Expect block start source to exist"),
+                                "Found opening '{' here",
+                            );
+                            e.add_spans(&mut vec![start_block_span]);
+                            e.add_help("Close the block with a '}'");
+                        }
+                        _ => {}
+                    }
                     return Err(e);
                 }
             }
@@ -212,13 +219,14 @@ impl<'a, T: LexToken> Parser<'a, T> {
         Ok(json!({ "Block": exps }))
     }
 
-    // LET := 'let' IDENTIFIER EXP
+    // LET := 'let' IDENTIFIER '=' EXP
     fn parse_let(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
-        let identifier = self.parse_atom()?;
+        let identifier = self.parse_identifier()?;
         if !self.consume(&Token::Equals) {
             // Expect '='
             return Err(ParseError::new_full(
+                crate::error::ParseErrorType::LET,
                 &self.source_name,
                 &self.source,
                 (self.current_source().unwrap() + 1, 1).into(),
@@ -239,19 +247,42 @@ impl<'a, T: LexToken> Parser<'a, T> {
         Ok(json!({ "Def": [name, body] }))
     }
 
+    /// Helper function to parse an identifier when it is expected
+    fn parse_identifier(&mut self) -> Result<Value, ParseError> {
+        match self.current_token().clone() {
+            Token::Identifier(ref name) => {
+                let ident = json!({ "Identifier": name });
+                self.next_token(); // Consume the identifier
+                Ok(ident)
+            }
+            _ => {
+                return Err(ParseError::new_full(
+                    crate::error::ParseErrorType::UNEXPECTED,
+                    &self.source_name,
+                    &self.source,
+                    (self.current_source().unwrap(), 2).into(),
+                    "Expected an identifier",
+                    Some("A valid identifier starts with a valid unicode character, but not a digit, '+' or '-'.".to_string()),
+                    vec![],
+                ));
+            }
+        }
+    }
+
     // ASSIGNMENT := IDENTIFIER '=' EXP
     // This gets called from parse_atom, we already have the identifier name
     // This function tests if there is an equals after the identifier
-    fn parse_assignment(&mut self, identifier: &str) -> Result<Value, ParseError> {
-        let ident = json!({ "Identifier": identifier });
-        self.next_token(); // Consume the identifier
-        if !self.consume(&Token::Equals) {
-            // Just return the identifier
-            Ok(ident)
-        } else {
+    fn parse_assignment(&mut self) -> Result<Value, ParseError> {
+        // Get identifier
+        let ident = self.parse_identifier()?;
+        // Check to see if next token is an equals token
+        if self.consume(&Token::Equals) {
             // Return assignment
             let body = self.parse_exp()?;
             Ok(json!({ "Assignment": [ident, body]}))
+        } else {
+            // Else just return the identifier
+            Ok(ident)
         }
     }
 }

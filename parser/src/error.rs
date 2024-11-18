@@ -1,6 +1,13 @@
 use miette::{Diagnostic, Report, LabeledSpan, NamedSource, SourceSpan};
 use thiserror::Error;
 
+#[derive(Debug, Clone)]
+pub enum ParseErrorType {
+    BLOCK,
+    LET,
+    UNEXPECTED,
+}
+
 #[derive(Error, Debug, Diagnostic, Clone)]
 #[error("Error while parsing!")]
 pub struct ParseError {
@@ -8,6 +15,8 @@ pub struct ParseError {
     src: NamedSource<String>,
 
     label: String,
+
+    pub error_type: ParseErrorType,
 
     #[label("{label} here")]
     main_span: SourceSpan,
@@ -20,10 +29,11 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub fn new(source_name: &str, src: &str, span: (usize, usize), label: &str) -> Self {
+    pub fn new(error_type: ParseErrorType, source_name: &str, src: &str, span: (usize, usize), label: &str) -> Self {
         let err = Self {
             src: NamedSource::new(source_name, src.to_string()),
             label: label.to_string(),
+            error_type,
             main_span: span.into(),
             other_spans: vec![],
             help: None
@@ -31,10 +41,11 @@ impl ParseError {
         err
     }
 
-    pub fn new_full(source_name: &str, src: &str, span: (usize, usize), label: &str, help: Option<String>, other_spans: Vec<LabeledSpan>) -> Self {
+    pub fn new_full(error_type: ParseErrorType, source_name: &str, src: &str, span: (usize, usize), label: &str, help: Option<String>, other_spans: Vec<LabeledSpan>) -> Self {
         let err = Self {
             src: NamedSource::new(source_name, src.to_string()),
             label: label.to_string(),
+            error_type,
             main_span: span.into(),
             other_spans,
             help

@@ -171,6 +171,7 @@ impl<'a> Lexer<'a> {
             Some(c) if c.is_digit(10) || *c == '+' || *c == '-' => self.lex_integer(),
             Some(_) => {
                 let error = ParseError::new(
+                    crate::error::ParseErrorType::UNEXPECTED,
                     &self.source_name,
                     &self.source,
                     (self.current_location, 1),
@@ -196,6 +197,7 @@ impl<'a> Lexer<'a> {
                 self.next_char();
             } else {
                 let error = ParseError::new(
+                    crate::error::ParseErrorType::UNEXPECTED,
                     &self.source_name,
                     &self.source,
                     (self.current_location, 1),
@@ -265,6 +267,7 @@ impl<'a> Lexer<'a> {
                             'r' => string_content.push('\r'),
                             _ => {
                                 let error = ParseError::new(
+                                    crate::error::ParseErrorType::UNEXPECTED,
                                     &self.source_name,
                                     &self.source,
                                     (self.current_location, 1),
