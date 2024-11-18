@@ -13,6 +13,7 @@ pub enum Token {
     String(String),
     Keyword(Keyword),
     Integer(i64),
+    Equals,
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -63,7 +64,7 @@ pub struct Lexer<'a> {
     source_name: &'a str,
     source: &'a str,
     input: Peekable<Chars<'a>>,
-    keywords: HashMap<&'a str, Token>,
+    keywords: HashMap<&'a str, Keyword>,
 
     current_location: usize,
     errors: Vec<ParseError>,
@@ -72,11 +73,11 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(source_name: &'a str, source: &'a str) -> Self {
         let mut keywords = HashMap::new();
-        keywords.insert("lambda", Token::Keyword(Keyword::Lambda));
-        keywords.insert("λ", Token::Keyword(Keyword::Lambda));
-        keywords.insert("let", Token::Keyword(Keyword::Let));
-        keywords.insert("def", Token::Keyword(Keyword::Def));
-        keywords.insert("cond", Token::Keyword(Keyword::Cond));
+        keywords.insert("lambda", Keyword::Lambda);
+        keywords.insert("λ", Keyword::Lambda);
+        keywords.insert("let", Keyword::Let);
+        keywords.insert("def", Keyword::Def);
+        keywords.insert("cond", Keyword::Cond);
 
         let lexer = Self {
             source_name,
@@ -162,8 +163,8 @@ impl<'a> Lexer<'a> {
                     self.input = forward;
                     Token::Arrow
                 } else {
-                    // We can assume it is an identifer or keyword now
-                    self.lex_identifier_or_keyword()
+                    self.next_char();
+                    Token::Equals
                 }
             }
             Some(c) if is_id_start(c) => self.lex_identifier_or_keyword(),
@@ -214,9 +215,9 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        match self.keywords.get(identifier.as_str()) {
+        match self.keywords.get(identifier.as_str()).cloned() {
             None => Token::Identifier(identifier),
-            Some(keyword) => keyword.clone(),
+            Some(keyword) => Token::Keyword(keyword.clone()),
         }
     }
 

@@ -220,6 +220,16 @@ impl<'a, T: LexToken> Parser<'a, T> {
     fn parse_let(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
         let identifier = self.parse_atom()?;
+        if !self.consume(&Token::Equals) { // Expect '='
+            return Err(ParseError::new_full(
+                &self.source_name,
+                &self.source,
+                (self.current_source().unwrap() + 1, 1).into(),
+                "Expected an '='",
+                Some("Let expression has form 'let x = 5'".to_string()),
+                vec![]
+            ));
+        }
         let exp = self.parse_exp()?;
         Ok(json!({ "Let": [identifier, exp] }))
     }
