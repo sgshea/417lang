@@ -111,6 +111,24 @@ impl LocalEnvironment {
 
         None
     }
+
+    /// Look for binding and change it if possible, else return an error
+    /// Returns the new value if it was successful
+    pub fn assignment(&mut self, identifier: &str, new_value: &Expr) -> Result<Expr, InterpError> {
+        // Try to do in this local environment
+        if let Some(expr_mut) = self.variables.get_mut(identifier) {
+            *expr_mut = new_value.clone();
+            return Ok(new_value.clone())
+        }
+
+        // Try recursively through parent environments
+        if let Some(parent) = &self.parent {
+            return parent.borrow_mut().assignment(identifier, new_value)
+        }
+
+        // Base case, identifier was never found and there is no parent of this environment
+        Err(InterpError::UndefinedError { symbol: identifier.to_string() })
+    }
 }
 
 impl Environment {

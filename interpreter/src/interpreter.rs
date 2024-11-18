@@ -215,6 +215,10 @@ fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> 
         return interpret_let(arr, interpreter);
     }
 
+    if let Some(arr) = obj.get("Assignment") {
+        return interpret_assignment(arr, interpreter);
+    }
+
     Err(InterpError::ParseError {
         message: format!(
             "Found JSON Object in AST but it does not contain a known keyword: {:?}",
@@ -264,6 +268,7 @@ pub fn interpret_block_with_bindings(
     res
 }
 
+/// Assigns a new value to a variable identifier
 fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
     let [identifier, value] = match val.as_array() {
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
@@ -291,6 +296,32 @@ fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Resu
     interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
 
     return Ok(ident_val);
+}
+
+/// Assigns a new value to an existing variable identifier
+fn interpret_assignment(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+    let [identifier, value] = match val.as_array() {
+        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
+        _ => {
+            return Err(InterpError::ParseError {
+                message: "Assignment expression expectes an identifier and a value to be bound."
+                    .to_string(),
+            })
+        }
+    };
+
+    let ident_name = identifier
+        .get("Identifier")
+        .and_then(|n| n.as_str())
+        .ok_or_else(|| {
+            return InterpError::ParseError {
+                message: "Expecting an identifier in assignment expression".to_string(),
+            };
+        })?;
+    
+    let ident_val = Expr::eval(value, interpreter)?;
+    // Try to assign
+    interpreter.local.borrow_mut().assignment(ident_name, &ident_val)
 }
 
 impl fmt::Display for Expr {
