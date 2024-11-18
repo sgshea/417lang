@@ -94,12 +94,8 @@ impl<'a, T: LexToken> Parser<'a, T> {
 
     // ATOM := IDENTIFIER | STRING | INTEGER
     fn parse_atom(&mut self) -> Result<Value, ParseError> {
-        match self.current_token() {
-            Token::Identifier(ref name) => {
-                let value = json!({ "Identifier": name });
-                self.next_token(); // Consume the identifier
-                Ok(value)
-            }
+        match self.current_token().clone() {
+            Token::Identifier(ref name) => self.parse_assignment(name),
             Token::Integer(ref num) => {
                 let value = json!(num);
                 self.next_token(); // Consume the integer
@@ -189,7 +185,7 @@ impl<'a, T: LexToken> Parser<'a, T> {
                 (current_source.unwrap(), 1).into(),
                 "Expected a block",
                 Some("Create a block with enclosing braces".to_string()),
-                vec![]
+                vec![],
             ));
         }
         let mut exps = vec![];
@@ -220,14 +216,15 @@ impl<'a, T: LexToken> Parser<'a, T> {
     fn parse_let(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Let)); // Expect 'let'
         let identifier = self.parse_atom()?;
-        if !self.consume(&Token::Equals) { // Expect '='
+        if !self.consume(&Token::Equals) {
+            // Expect '='
             return Err(ParseError::new_full(
                 &self.source_name,
                 &self.source,
                 (self.current_source().unwrap() + 1, 1).into(),
                 "Expected an '='",
                 Some("Let expression has form 'let x = 5'".to_string()),
-                vec![]
+                vec![],
             ));
         }
         let exp = self.parse_exp()?;
@@ -240,6 +237,22 @@ impl<'a, T: LexToken> Parser<'a, T> {
         let name = self.parse_atom()?;
         let body = self.parse_exp()?;
         Ok(json!({ "Def": [name, body] }))
+    }
+
+    // ASSIGNMENT := IDENTIFIER '=' EXP
+    // This gets called from parse_atom, we already have the identifier name
+    // This function tests if there is an equals after the identifier
+    fn parse_assignment(&mut self, identifier: &str) -> Result<Value, ParseError> {
+        let ident = json!({ "Identifier": identifier });
+        self.next_token(); // Consume the identifier
+        if !self.consume(&Token::Equals) {
+            // Just return the identifier
+            Ok(ident)
+        } else {
+            // Return assignment
+            let body = self.parse_exp()?;
+            Ok(json!({ "Assignment": [ident, body]}))
+        }
     }
 }
 
