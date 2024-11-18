@@ -39,7 +39,7 @@ impl LocalEnvironment {
         env.add_builtin_func("print", print);
         env.add_builtin_func("println", println);
         env.add_builtin_func("dbg", dbg);
-        env.add_builtin_func("=", eq);
+        env.add_builtin_func("eq", eq);
         env.add_builtin_func("add", add);
         env.add_builtin_func("sub", sub);
         env.add_builtin_func("mul", mul);

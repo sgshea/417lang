@@ -286,7 +286,8 @@ fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Resu
 
     let ident_val = Expr::eval(value, interpreter)?;
 
-    // Place into our environment
+    // Place into new local environment
+    interpreter.enter_new_local();
     interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
 
     return Ok(ident_val);

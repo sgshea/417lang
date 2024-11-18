@@ -5,6 +5,7 @@ pub fn main() {
 
     let args: Vec<String> = env::args().collect();
     // Lexical scope is default, dynamic scope only if argument specified
+    // Like '-- dynamic_scope
     let lexical_scope = !args.contains(&"dynamic_scope".to_string());
 
     // The normal run without any features, reads in input (expecting JSON) and interprets
