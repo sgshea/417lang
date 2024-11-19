@@ -3,7 +3,9 @@ use std::{cell::RefCell, fmt, rc::Rc};
 use serde_json::Value;
 
 use crate::{
-    environment::{Environment, LocalEnvironment}, error::InterpError, interpreter::{interpret_block_with_bindings, Expr, Interpreter}
+    environment::{Environment, LocalEnvironment},
+    error::InterpError,
+    interpreter::{interpret_block_with_bindings, Expr, Interpreter},
 };
 
 #[derive(PartialEq, Eq, Clone)]
@@ -124,7 +126,13 @@ pub fn function_application(
         })?;
         if let Expr::Function(func) = first {
             match func {
-                Function::CoreFunction { name: _name, func } => return func(rest, &mut interpreter.local.borrow_mut(), &mut interpreter.global),
+                Function::CoreFunction { name: _name, func } => {
+                    return func(
+                        rest,
+                        &mut interpreter.local.borrow_mut(),
+                        &mut interpreter.global,
+                    )
+                }
                 Function::Function {
                     name,
                     args,
@@ -151,7 +159,7 @@ pub fn function_application(
                         );
                         // Pop environment
                         interpreter.local = current_local;
-                        return result
+                        return result;
                     } else {
                         return interpret_block_with_bindings(
                             &func,
@@ -185,13 +193,21 @@ fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
 /// BEGIN INBUILT FUNCTIONS
 
 // Takes in any amount of arguments and adds them together
-pub fn add(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn add(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(ints.into_iter().sum()))
 }
 
 // Takes in any amount of arguments and subtracts from the first argument
-pub fn sub(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn sub(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(
         ints.into_iter().reduce(|first, x| first - x).unwrap_or(0),
@@ -199,13 +215,21 @@ pub fn sub(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment
 }
 
 // Takes in any amount of arguments and multiplies by the first argument
-pub fn mul(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn mul(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     Ok(Expr::Integer(ints.into_iter().product()))
 }
 
 // divides first argument by second
-pub fn div(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn div(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     if ints.len() != 2 {
         return Err(InterpError::ArgumentError {
@@ -218,7 +242,11 @@ pub fn div(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment
 }
 
 // gets remainder of first argument by second
-pub fn rem(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn rem(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
     if ints.len() != 2 {
         return Err(InterpError::ArgumentError {
@@ -230,13 +258,21 @@ pub fn rem(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment
     Ok(Expr::Integer(ints[0] % ints[1]))
 }
 
-pub fn zero(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn zero(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let int = exprs_into_i64(args)?;
     let bool = int[0] == 0;
     Ok(Expr::Boolean(bool))
 }
 
-pub fn eq(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn eq(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     match args.is_empty() {
         false => {
             let first = args.first().expect("Was not empty in previous check");
@@ -246,7 +282,11 @@ pub fn eq(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment)
     }
 }
 
-pub fn print(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn print(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    global: &mut Environment,
+) -> Result<Expr, InterpError> {
     for arg in args {
         if global.store_output {
             global.add_output(&arg.to_string());
@@ -258,7 +298,11 @@ pub fn print(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environmen
     Ok(Expr::Boolean(true))
 }
 
-pub fn println(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn println(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    global: &mut Environment,
+) -> Result<Expr, InterpError> {
     for arg in args {
         if global.store_output {
             let str = &mut arg.to_string();
@@ -272,7 +316,11 @@ pub fn println(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environm
     Ok(Expr::Boolean(true))
 }
 
-pub fn dbg(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn dbg(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    global: &mut Environment,
+) -> Result<Expr, InterpError> {
     for arg in args {
         if global.store_output {
             global.add_output(format!("{:#?}\n", arg).as_str());
@@ -285,7 +333,11 @@ pub fn dbg(args: &[Expr], _env: &mut LocalEnvironment, global: &mut Environment)
 
 /// Returns argument strings as new, uppercase strings
 /// If there are multiple arguments, it returns a list of the new strings
-pub fn to_uppercase(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn to_uppercase(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     if args.len() > 1 {
         let exprs = args
             .into_iter()
@@ -306,7 +358,11 @@ pub fn to_uppercase(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut En
 
 /// Returns argument strings as new, lowercase strings
 /// If there are multiple arguments, it returns a list of the new strings
-pub fn to_lowercase(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn to_lowercase(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     if args.len() > 1 {
         let exprs = args
             .into_iter()
@@ -326,7 +382,11 @@ pub fn to_lowercase(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut En
 }
 
 /// Concatenates strings together
-pub fn concat(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn concat(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let exprs = args
         .into_iter()
         .map(|f| f.try_into())
@@ -336,7 +396,11 @@ pub fn concat(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environm
 
 /// Checks if a string contains a character
 /// First argument is the character to check if the rest of the arguments contain
-pub fn contains(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Environment) -> Result<Expr, InterpError> {
+pub fn contains(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
     let exprs = args
         .into_iter()
         .map(|f| f.try_into())
@@ -355,5 +419,29 @@ pub fn contains(args: &[Expr], _env: &mut LocalEnvironment, _global: &mut Enviro
         return Ok(Expr::Boolean(
             !rest.iter().any(|ele| !ele.contains(first_arg)),
         ));
+    }
+}
+
+/// Gives the length of a string
+pub fn length(
+    args: &[Expr],
+    _env: &mut LocalEnvironment,
+    _global: &mut Environment,
+) -> Result<Expr, InterpError> {
+    if args.len() > 1 {
+        let exprs = args
+            .into_iter()
+            .map(|f| f.try_into().and_then(|s: String| Ok(s.len())))
+            .collect::<Result<Vec<usize>, InterpError>>()?;
+        Ok(Expr::List(
+            exprs.into_iter().map(|s| Expr::Integer(s as i64)).collect(),
+        ))
+    } else {
+        Ok(Expr::Integer(
+            args[0]
+                .clone()
+                .try_into()
+                .and_then(|s: String| Ok(s.len() as i64))?,
+        ))
     }
 }

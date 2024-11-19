@@ -212,7 +212,7 @@ fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> 
     }
 
     if let Some(arr) = obj.get("Def") {
-        return interpret_let(arr, interpreter);
+        return interpret_def(arr, interpreter);
     }
 
     if let Some(arr) = obj.get("Assignment") {
@@ -274,7 +274,7 @@ fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Resu
         Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
         _ => {
             return Err(InterpError::ParseError {
-                message: "Let expression expectes an identifier and a value to be bound."
+                message: "let expression expectes an identifier and a value to be bound."
                     .to_string(),
             })
         }
@@ -293,6 +293,36 @@ fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Resu
 
     // Place into new local environment
     interpreter.enter_new_local();
+    interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
+
+    return Ok(ident_val);
+}
+
+/// A definition is a binding that allows mutually-recursive functions to be defined
+/// In lexical scope, the local environment of the binding is the local environment of the block where the definition lies
+fn interpret_def(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+    let [identifier, value] = match val.as_array() {
+        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
+        _ => {
+            return Err(InterpError::ParseError {
+                message: "def expression expectes an identifier and a value to be bound."
+                    .to_string(),
+            })
+        }
+    };
+
+    let ident_name = identifier
+        .get("Identifier")
+        .and_then(|n| n.as_str())
+        .ok_or_else(|| {
+            return InterpError::ParseError {
+                message: "Expecting an identifier in def expression".to_string(),
+            };
+        })?;
+
+    let ident_val = Expr::eval(value, interpreter)?;
+
+    // Place into the current local environment
     interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
 
     return Ok(ident_val);

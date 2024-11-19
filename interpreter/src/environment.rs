@@ -5,8 +5,7 @@ use std::rc::Rc;
 use crate::error::InterpError;
 use crate::functions::Function::CoreFunction;
 use crate::functions::{
-    add, concat, contains, dbg, div, eq, mul, print, println, rem, sub, to_lowercase, to_uppercase,
-    zero,
+    add, concat, contains, dbg, div, eq, length, mul, print, println, rem, sub, to_lowercase, to_uppercase, zero
 };
 use crate::interpreter::Expr;
 
@@ -50,6 +49,7 @@ impl LocalEnvironment {
         env.add_builtin_func("to_lowercase", to_lowercase);
         env.add_builtin_func("concat", concat);
         env.add_builtin_func("contains", contains);
+        env.add_builtin_func("length", length);
         env.add_builtin("x", Expr::Integer(10));
         env.add_builtin("v", Expr::Integer(5));
         env.add_builtin("i", Expr::Integer(1));

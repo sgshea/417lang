@@ -1,8 +1,30 @@
 {
-    def fact λ(n) {
-        cond 
+    // Factorial (recursive, no accumulator)
+    //
+    // Works with lexical scope.  We could have used the Y combinator
+    // instead, or the technique from cp3ex4.417.  But we have assignment
+    // now, so we can use that.
+    // (cp6ex3)
+    {
+        let fact = 123;     // Dummy value
+        fact = λ(n) {
+            cond 
             (zero?(n) => 1) 
             (true => mul(n, fact(sub(n, 1))))
+        };
+        println("cp6ex3: ", fact(7));
     };
-    fact(10)
+
+    // This is cp3ex4
+    println("cp3ex4: ",
+        λ(f, n) {
+            cond 
+            (zero?(n) => 1) 
+            (true => mul(n, f(f, sub(n, 1))))
+        }
+        (λ(f, n) {
+            cond  
+                (zero?(n) => 1) 
+                (true => mul(n, f(f, sub(n, 1))))
+        }, 10));
 }

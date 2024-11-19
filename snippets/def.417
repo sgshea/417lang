@@ -1,0 +1,33 @@
+// def expression is implemented so that the local environment of the right side expression is the block where the definition happens
+// def allows recursive bindings
+{
+    {
+        // factorial example
+        def fact = λ(n)
+        {
+            cond 
+                (zero?(n) => 1) 
+                (true => mul(n, fact(sub(n, 1))))
+        };
+        println(fact(10));
+    };
+    {
+        // even/odd mutually recursive example
+        def even = λ(n)
+        {
+            cond 
+                (zero?(n) => true) 
+                (true => odd(sub(n, 1)))
+        }
+
+        def odd = λ(n)
+        {
+            cond 
+                (zero?(n) => false) 
+                (true => even(sub(n, 1)))
+        }
+
+        println("10 is odd: ", odd(10));
+        println("10 is even: ", even(10));
+    };
+}

@@ -1,5 +1,5 @@
 import init, { interpret_with_parser_to_string, interpret_to_string, parse_to_string } from "./interpreter/pkg/interpreter.js";
-require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' }});
+require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor/min/vs' } });
 
 let snippets = {};
 
@@ -9,6 +9,9 @@ const snippetFiles = [
     'snippets/factorial.417',
     'snippets/helloworld.417',
     'snippets/cp5ex3.417',
+    'snippets/multi_assignment.417',
+    'snippets/sort.417',
+    'snippets/def.417'
 ];
 
 async function loadSnippets() {
@@ -22,7 +25,7 @@ async function loadSnippets() {
     await Promise.all(snippetPromises);
 }
 
-require(['vs/editor/editor.main'], async function() {
+require(['vs/editor/editor.main'], async function () {
     await init();
     await loadSnippets();
 
@@ -92,7 +95,7 @@ require(['vs/editor/editor.main'], async function() {
 
     // Add event listener to the button
     document.getElementById('runButton').addEventListener('click', runWasm);
-    document.getElementById('editor').addEventListener('keydown', function(event) {
+    document.getElementById('editor').addEventListener('keydown', function (event) {
         if (event.altKey && event.key === 'Enter') {
             runWasm();
         }

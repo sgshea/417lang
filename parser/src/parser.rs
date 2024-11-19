@@ -242,7 +242,19 @@ impl<'a, T: LexToken> Parser<'a, T> {
     // DEFINITION := 'def' IDENTIFIER EXP
     fn parse_definition(&mut self) -> Result<Value, ParseError> {
         self.consume(&Token::Keyword(Keyword::Def));
-        let name = self.parse_atom()?;
+        let name = self.parse_identifier()?;
+        if !self.consume(&Token::Equals) {
+            // Expect '='
+            return Err(ParseError::new_full(
+                crate::error::ParseErrorType::LET,
+                &self.source_name,
+                &self.source,
+                (self.current_source().unwrap() + 1, 1).into(),
+                "Expected an '='",
+                Some("Def expression has form 'let x = 5'".to_string()),
+                vec![],
+            ));
+        }
         let body = self.parse_exp()?;
         Ok(json!({ "Def": [name, body] }))
     }

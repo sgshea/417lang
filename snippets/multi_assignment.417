@@ -1,0 +1,7 @@
+// Example using multiple assignment
+// (cp6ex4)
+{
+  let y = 0;
+  let z = y = x = 333;
+  print("x is ", x, "\ny is ", y, "\nz is ", z, "\n")
+}
