@@ -79,7 +79,7 @@ impl LocalEnvironment {
     fn add_builtin_func(
         &mut self,
         name: &str,
-        func: fn(&[Expr], &mut LocalEnvironment, &mut Environment) -> Result<Expr, InterpError>,
+        func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>,
     ) {
         self.variables.insert(
             name.to_string(),

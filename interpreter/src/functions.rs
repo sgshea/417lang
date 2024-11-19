@@ -13,7 +13,7 @@ pub enum Function {
     // Internal Rust function (holds a function pointer)
     CoreFunction {
         name: String,
-        func: fn(&[Expr], &mut LocalEnvironment, &mut Environment) -> Result<Expr, InterpError>,
+        func: fn(&[Expr], &mut Environment) -> Result<Expr, InterpError>,
     },
     // User function defined in the language. It has a name and evaluates to an expression.
     Function {
@@ -129,7 +129,6 @@ pub fn function_application(
                 Function::CoreFunction { name: _name, func } => {
                     return func(
                         rest,
-                        &mut interpreter.local.borrow_mut(),
                         &mut interpreter.global,
                     )
                 }
@@ -195,7 +194,6 @@ fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
 // Takes in any amount of arguments and adds them together
 pub fn add(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
@@ -205,7 +203,6 @@ pub fn add(
 // Takes in any amount of arguments and subtracts from the first argument
 pub fn sub(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
@@ -217,7 +214,6 @@ pub fn sub(
 // Takes in any amount of arguments and multiplies by the first argument
 pub fn mul(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
@@ -227,7 +223,6 @@ pub fn mul(
 // divides first argument by second
 pub fn div(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
@@ -244,7 +239,6 @@ pub fn div(
 // gets remainder of first argument by second
 pub fn rem(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let ints = exprs_into_i64(args)?;
@@ -260,7 +254,6 @@ pub fn rem(
 
 pub fn zero(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let int = exprs_into_i64(args)?;
@@ -270,7 +263,6 @@ pub fn zero(
 
 pub fn eq(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     match args.is_empty() {
@@ -284,7 +276,6 @@ pub fn eq(
 
 pub fn print(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     for arg in args {
@@ -300,7 +291,6 @@ pub fn print(
 
 pub fn println(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     for arg in args {
@@ -318,7 +308,6 @@ pub fn println(
 
 pub fn dbg(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     for arg in args {
@@ -335,7 +324,6 @@ pub fn dbg(
 /// If there are multiple arguments, it returns a list of the new strings
 pub fn to_uppercase(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     if args.len() > 1 {
@@ -360,7 +348,6 @@ pub fn to_uppercase(
 /// If there are multiple arguments, it returns a list of the new strings
 pub fn to_lowercase(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     if args.len() > 1 {
@@ -384,7 +371,6 @@ pub fn to_lowercase(
 /// Concatenates strings together
 pub fn concat(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let exprs = args
@@ -398,7 +384,6 @@ pub fn concat(
 /// First argument is the character to check if the rest of the arguments contain
 pub fn contains(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     let exprs = args
@@ -425,7 +410,6 @@ pub fn contains(
 /// Gives the length of a string
 pub fn length(
     args: &[Expr],
-    _env: &mut LocalEnvironment,
     _global: &mut Environment,
 ) -> Result<Expr, InterpError> {
     if args.len() > 1 {

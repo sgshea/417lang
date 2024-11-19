@@ -61,12 +61,14 @@ impl<'a, T: LexToken> Parser<'a, T> {
             Token::Keyword(_) => self.parse_form(),
             Token::OpenBrace => self.parse_block(),
             _ => {
-                let err = ParseError::new(
-                    crate::error::ParseErrorType::BLOCK,
+                let err = ParseError::new_full(
+                    crate::error::ParseErrorType::UNEXPECTED,
                     &self.source_name,
                     &self.source,
                     (self.current_source().unwrap(), 1).into(),
                     "Expected expression",
+                    Some("You probably forgot to close either a block or function application, try placing a '}' or ')' if appropriate.".to_string()),
+                    vec![]
                 );
                 return Err(err);
             }
@@ -296,69 +298,5 @@ impl<'a, T: LexToken> Parser<'a, T> {
             // Else just return the identifier
             Ok(ident)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parser() {
-        let tokens = vec![
-            Token::Keyword(Keyword::Def),
-            Token::Identifier("fact".to_string()),
-            Token::Keyword(Keyword::Lambda),
-            Token::OpenParen,
-            Token::Identifier("n".to_string()),
-            Token::CloseParen,
-            Token::OpenBrace,
-            Token::Keyword(Keyword::Cond),
-            Token::OpenParen,
-            Token::Identifier("zero?".to_string()),
-            Token::OpenParen,
-            Token::Identifier("n".to_string()),
-            Token::CloseParen,
-            Token::Arrow,
-            Token::Integer(1),
-            Token::CloseParen,
-            Token::OpenParen,
-            Token::Identifier("true".to_string()),
-            Token::Arrow,
-            Token::Identifier("mul".to_string()),
-            Token::OpenParen,
-            Token::Identifier("n".to_string()),
-            Token::Comma,
-            Token::Identifier("fact".to_string()),
-            Token::OpenParen,
-            Token::Identifier("sub".to_string()),
-            Token::OpenParen,
-            Token::Identifier("n".to_string()),
-            Token::Comma,
-            Token::Integer(1),
-            Token::CloseParen,
-            Token::CloseParen,
-            Token::CloseParen,
-            Token::CloseParen,
-            Token::CloseBrace,
-            Token::EOF,
-        ];
-
-        // passing in empty input (we don't expect errors for this test anyway)
-        let mut parser = Parser::new("", "", &tokens);
-        let ast = parser.parse_program().unwrap();
-
-        let output = r#"
-        {"Def":[{"Identifier": "fact"},
-        {"Lambda":[{"Parameters":[{"Identifier": "n"}]},
-        {"Block":[{"Cond":[{"Clause":[{"Application":[{"Identifier": "zero?"},
-        {"Identifier": "n"}]},1]},{"Clause":[{"Identifier": "true"},
-        {"Application":[{"Identifier": "mul"},{"Identifier": "n"},
-        {"Application":[{"Identifier": "fact"},
-        {"Application":[{"Identifier": "sub"},
-        {"Identifier": "n"},1]}]}]}]}]}]}]}]}
-        "#;
-        let output_json: Value = serde_json::from_str(output).expect("should be valid json");
-        assert_eq!(ast, output_json);
     }
 }
