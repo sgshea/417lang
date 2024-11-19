@@ -10,7 +10,7 @@ const snippetFiles = [
     'snippets/helloworld.417',
     'snippets/cp5ex3.417',
     'snippets/multi_assignment.417',
-    'snippets/sort.417',
+    // 'snippets/sort.417',
     'snippets/def.417'
 ];
 
