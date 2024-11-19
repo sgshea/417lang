@@ -1,3 +1,34 @@
 {
-    let 🦀 = "🦀 is best lang";
+    // Binary Search Function
+    let binary_search = λ(sorted_list, target) {
+        // Helper function to perform the binary search
+        def search = λ(low, high) {
+            cond 
+                (greater?(low, high) => -1) // Base case: target not found
+                (true => {
+                    let mid = div(add(low, high), 2); // Calculate mid index
+                    let mid_value = get(sorted_list, mid); // Get the value at mid index
+
+                    cond 
+                        (equal?(mid_value, target) => mid) // Target found
+                        (less?(mid_value, target) => search(add(mid, 1), high)) // Search in the right half
+                        (true => search(low, sub(mid, 1))) // Search in the left half
+                })
+        };
+
+        // Start the search from the full range of the list
+        search(0, sub(length(sorted_list), 1));
+    };
+
+    let unsorted_list = as_list(10, 3, 5, 1, 9, 2, 8, 4, 7, 6);
+    println("Unsorted List: ", unsorted_list);
+    
+    slow_sort(unsorted_list, 0, sub(length(unsorted_list), 1));
+    
+    println("Sorted List: ", unsorted_list);
+    let target = 7;
+    println("Index of ", target, ": ", binary_search(sorted_list, target));
+    
+    target = 11;
+    println("Index of ", target, ": ", binary_search(sorted_list, target));
 }

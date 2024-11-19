@@ -5,7 +5,8 @@ use std::rc::Rc;
 use crate::error::InterpError;
 use crate::functions::Function::CoreFunction;
 use crate::functions::{
-    add, concat, contains, dbg, div, eq, length, mul, print, println, rem, sub, to_lowercase, to_uppercase, zero
+    add, as_list, concat, contains, dbg, div, eq, get, greater, length, less, mul, print, println,
+    rem, set, sub, to_lowercase, to_uppercase, zero,
 };
 use crate::interpreter::Expr;
 
@@ -38,7 +39,9 @@ impl LocalEnvironment {
         env.add_builtin_func("print", print);
         env.add_builtin_func("println", println);
         env.add_builtin_func("dbg", dbg);
-        env.add_builtin_func("eq", eq);
+        env.add_builtin_func("equal?", eq);
+        env.add_builtin_func("greater?", greater);
+        env.add_builtin_func("less?", less);
         env.add_builtin_func("add", add);
         env.add_builtin_func("sub", sub);
         env.add_builtin_func("mul", mul);
@@ -50,6 +53,9 @@ impl LocalEnvironment {
         env.add_builtin_func("concat", concat);
         env.add_builtin_func("contains", contains);
         env.add_builtin_func("length", length);
+        env.add_builtin_func("as_list", as_list);
+        env.add_builtin_func("get", get);
+        env.add_builtin_func("set", set);
         env.add_builtin("x", Expr::Integer(10));
         env.add_builtin("v", Expr::Integer(5));
         env.add_builtin("i", Expr::Integer(1));
@@ -118,16 +124,18 @@ impl LocalEnvironment {
         // Try to do in this local environment
         if let Some(expr_mut) = self.variables.get_mut(identifier) {
             *expr_mut = new_value.clone();
-            return Ok(new_value.clone())
+            return Ok(new_value.clone());
         }
 
         // Try recursively through parent environments
         if let Some(parent) = &self.parent {
-            return parent.borrow_mut().assignment(identifier, new_value)
+            return parent.borrow_mut().assignment(identifier, new_value);
         }
 
         // Base case, identifier was never found and there is no parent of this environment
-        Err(InterpError::UndefinedError { symbol: identifier.to_string() })
+        Err(InterpError::UndefinedError {
+            symbol: identifier.to_string(),
+        })
     }
 }
 

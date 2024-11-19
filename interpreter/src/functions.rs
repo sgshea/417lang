@@ -25,26 +25,6 @@ pub enum Function {
     },
 }
 
-impl fmt::Debug for Function {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Function::CoreFunction { name, .. } => write!(f, "CoreFunction(name: {})", name),
-            Function::Function {
-                name,
-                args,
-                func,
-                env: _,
-            } => {
-                write!(
-                    f,
-                    "Function(name: {}, args: {:?}, func: {:?})",
-                    name, args, func
-                )
-            }
-        }
-    }
-}
-
 /// Parse a function into a UFunc, without evaluating it
 pub fn parse_anonymous_function(
     val: &serde_json::Value,
@@ -181,10 +161,30 @@ pub fn function_application(
     })
 }
 
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Function::CoreFunction { name, .. } => write!(f, "CoreFunction(name: {})", name),
+            Function::Function {
+                name,
+                args,
+                func,
+                env: _,
+            } => {
+                write!(
+                    f,
+                    "Function(name: {}, args: {:?}, func: {:?})",
+                    name, args, func
+                )
+            }
+        }
+    }
+}
+
 /// Helper functions
 fn exprs_into_i64(args: &[Expr]) -> Result<Vec<i64>, InterpError> {
     args.into_iter()
-        .map(|expr| expr.try_into())
+        .map(|expr| expr.clone().try_into())
         .collect::<Result<Vec<i64>, InterpError>>()
 }
 
@@ -252,6 +252,30 @@ pub fn eq(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError>
     }
 }
 
+pub fn greater(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    let ints = exprs_into_i64(args)?;
+    if ints.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "greater?".to_string(),
+            expected: 2,
+            got: ints.len(),
+        });
+    }
+    Ok(Expr::Boolean(ints[0] > ints[1]))
+}
+
+pub fn less(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    let ints = exprs_into_i64(args)?;
+    if ints.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "less?".to_string(),
+            expected: 2,
+            got: ints.len(),
+        });
+    }
+    Ok(Expr::Boolean(ints[0] < ints[1]))
+}
+
 pub fn print(args: &[Expr], global: &mut Environment) -> Result<Expr, InterpError> {
     for arg in args {
         if global.store_output {
@@ -296,7 +320,11 @@ pub fn to_uppercase(args: &[Expr], _global: &mut Environment) -> Result<Expr, In
     if args.len() > 1 {
         let exprs = args
             .into_iter()
-            .map(|f| f.try_into().and_then(|s: String| Ok(s.to_uppercase())))
+            .map(|f| {
+                f.clone()
+                    .try_into()
+                    .and_then(|s: String| Ok(s.to_uppercase()))
+            })
             .collect::<Result<Vec<String>, InterpError>>()?;
         Ok(Expr::List(
             exprs.into_iter().map(|s| Expr::String(s)).collect(),
@@ -317,7 +345,11 @@ pub fn to_lowercase(args: &[Expr], _global: &mut Environment) -> Result<Expr, In
     if args.len() > 1 {
         let exprs = args
             .into_iter()
-            .map(|f| f.try_into().and_then(|s: String| Ok(s.to_lowercase())))
+            .map(|f| {
+                f.clone()
+                    .try_into()
+                    .and_then(|s: String| Ok(s.to_lowercase()))
+            })
             .collect::<Result<Vec<String>, InterpError>>()?;
         Ok(Expr::List(
             exprs.into_iter().map(|s| Expr::String(s)).collect(),
@@ -336,7 +368,7 @@ pub fn to_lowercase(args: &[Expr], _global: &mut Environment) -> Result<Expr, In
 pub fn concat(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
     let exprs = args
         .into_iter()
-        .map(|f| f.try_into())
+        .map(|f| f.clone().try_into())
         .collect::<Result<Vec<String>, InterpError>>()?;
     Ok(Expr::String(exprs.concat()))
 }
@@ -346,7 +378,7 @@ pub fn concat(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpEr
 pub fn contains(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
     let exprs = args
         .into_iter()
-        .map(|f| f.try_into())
+        .map(|f| f.clone().try_into())
         .collect::<Result<Vec<String>, InterpError>>()?;
 
     let first_arg = exprs.first();
@@ -365,22 +397,67 @@ pub fn contains(args: &[Expr], _global: &mut Environment) -> Result<Expr, Interp
     }
 }
 
-/// Gives the length of a string
-pub fn length(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
-    if args.len() > 1 {
-        let exprs = args
-            .into_iter()
-            .map(|f| f.try_into().and_then(|s: String| Ok(s.len())))
-            .collect::<Result<Vec<usize>, InterpError>>()?;
-        Ok(Expr::List(
-            exprs.into_iter().map(|s| Expr::Integer(s as i64)).collect(),
-        ))
+// Returns all the arguments as a list expression
+pub fn as_list(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    Ok(Expr::List(args.to_vec()))
+}
+
+// Returns the expression at the provided index of a list
+// First arg: list expr
+// Second arg: idx
+pub fn get(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    if args.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "get".to_string(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let idx: &i64 = &args[1].clone().try_into()?;
+    if let Expr::List(list) = &args[0] {
+        Ok(list[*idx as usize].clone())
     } else {
-        Ok(Expr::Integer(
-            args[0]
-                .clone()
-                .try_into()
-                .and_then(|s: String| Ok(s.len() as i64))?,
-        ))
+        Err(InterpError::TypeError {
+            expected: "list".to_string(),
+            found: args[0].to_string(),
+        })
+    }
+}
+
+// Sets an element in a list
+// First arg: list expr
+// Second arg: idx
+// Thid arg: new element
+pub fn set(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    if args.len() != 2 {
+        return Err(InterpError::ArgumentError {
+            func: "set".to_string(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+
+    let idx: &i64 = &args[1].clone().try_into()?;
+    if let Expr::List(list) = &args[0] {
+        let mut new_list = list.clone();
+        new_list[*idx as usize] = args[2].clone();
+        Ok(Expr::List(new_list))
+    } else {
+        Err(InterpError::TypeError {
+            expected: "list".to_string(),
+            found: args[0].to_string(),
+        })
+    }
+}
+
+/// Gives the length of a string or a list
+pub fn length(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    match &args[0] {
+        Expr::String(str) => Ok(Expr::Integer(str.len() as i64)),
+        Expr::List(list) => Ok(Expr::Integer(list.len() as i64)),
+        _ => Err(InterpError::TypeError {
+            expected: "string or list".to_string(),
+            found: args[0].to_string(),
+        }),
     }
 }

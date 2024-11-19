@@ -11,11 +11,11 @@ pub enum InterpError {
     ArgumentError {
         func: String,
         expected: usize, // Expected number of arguments
-        got: usize // Got this amount of arguments
+        got: usize,      // Got this amount of arguments
     },
     // Symbol undefined such as when searching for identifier
     UndefinedError {
-        symbol: String
+        symbol: String,
     },
     // Type error for when a type is incorrect
     TypeError {
@@ -27,12 +27,20 @@ pub enum InterpError {
 impl fmt::Display for InterpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InterpError::ParseError { message} => {
+            InterpError::ParseError { message } => {
                 write!(f, "Parse error: {}", message)
-            },
-            InterpError::ArgumentError { func, expected, got } => {
-                write!(f, "Incorrect number of arguments supplied to function '{}': expected {}, got {}", func, expected, got)
-            },
+            }
+            InterpError::ArgumentError {
+                func,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "Incorrect number of arguments supplied to function '{}': expected {}, got {}",
+                    func, expected, got
+                )
+            }
             InterpError::UndefinedError { symbol } => {
                 write!(f, "Undefined symbol '{}'", symbol)
             }

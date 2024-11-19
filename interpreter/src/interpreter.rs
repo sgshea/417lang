@@ -36,7 +36,10 @@ impl Interpreter {
 
     /// Enter specific local environment (i.e. a function's saved environment)
     /// Returns the current local environment
-    pub fn enter_local(&mut self, local: Rc<RefCell<LocalEnvironment>>) -> Rc<RefCell<LocalEnvironment>> {
+    pub fn enter_local(
+        &mut self,
+        local: Rc<RefCell<LocalEnvironment>>,
+    ) -> Rc<RefCell<LocalEnvironment>> {
         let old_local = self.local.clone();
         self.local = local;
         old_local
@@ -59,7 +62,10 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn eval(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+    pub fn eval(
+        val: &serde_json::Value,
+        interpreter: &mut Interpreter,
+    ) -> Result<Expr, InterpError> {
         match val {
             Value::Number(num) => num
                 .as_i64()
@@ -88,92 +94,28 @@ impl Expr {
     }
 }
 
-impl TryInto<bool> for &Expr {
-    fn try_into(self) -> Result<bool, Self::Error> {
-        match self {
-            Expr::Boolean(bool) => Ok(*bool),
-            _ => Err(InterpError::TypeError {
-                expected: "bool".to_string(),
-                found: self.to_string(),
-            }),
-        }
-    }
-
-    type Error = InterpError;
-}
-
-impl TryInto<i64> for &Expr {
-    fn try_into(self) -> Result<i64, Self::Error> {
-        match self {
-            Expr::Integer(int) => Ok(*int),
-            _ => Err(InterpError::TypeError {
-                expected: "integer".to_string(),
-                found: self.to_string(),
-            }),
-        }
-    }
-
-    type Error = InterpError;
-}
-
-impl TryInto<String> for Expr {
-    fn try_into(self) -> Result<String, Self::Error> {
-        match self {
-            Expr::String(str) => Ok(str.to_string()),
-            _ => Err(InterpError::TypeError {
-                expected: "string".to_string(),
-                found: self.to_string(),
-            }),
-        }
-    }
-
-    type Error = InterpError;
-}
-
-impl TryInto<String> for &Expr {
-    fn try_into(self) -> Result<String, Self::Error> {
-        match self {
-            Expr::String(str) => Ok(str.to_string()),
-            _ => Err(InterpError::TypeError {
-                expected: "string".to_string(),
-                found: self.to_string(),
-            }),
-        }
-    }
-
-    type Error = InterpError;
-}
-
 /// Interpret a JSON object, looking for the keys that correspond to certain behaviors
-fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+fn interpret_object(
+    obj: &Map<String, Value>,
+    interpreter: &mut Interpreter,
+) -> Result<Expr, InterpError> {
     // First see if there is an identifier
     if let Some(binding) = obj.get("Identifier").and_then(|val| val.as_str()) {
-        return interpreter
-            .local
-            .borrow()
-            .lookup(binding)
-            .ok_or_else(|| InterpError::UndefinedError {
+        return interpreter.local.borrow().lookup(binding).ok_or_else(|| {
+            InterpError::UndefinedError {
                 symbol: binding.to_string(),
-            });
+            }
+        });
     }
 
     // Handle blocks
     if let Some(key) = obj.get("Block") {
         return interpret_block(key, interpreter);
-    }
-
-    // Parse a function definition
-    if let Some(lambda) = obj.get("Lambda") {
+    } else if let Some(lambda) = obj.get("Lambda") {
         return parse_anonymous_function(lambda, None, interpreter);
-    }
-
-    // Apply a function
-    if let Some(arr) = obj.get("Application") {
+    } else if let Some(arr) = obj.get("Application") {
         return function_application(arr, interpreter);
-    }
-
-    // Handle conditional clauses
-    if let Some(arr) = obj.get("Cond") {
+    } else if let Some(arr) = obj.get("Cond") {
         if let Value::Array(arr) = arr {
             // Expect "Clause"
             // Returns the result of the first expression where it's condition was true
@@ -203,20 +145,22 @@ fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> 
                 }
             }
         }
-
         return Ok(Expr::Boolean(false));
-    }
-
-    if let Some(arr) = obj.get("Let") {
-        return interpret_let(arr, interpreter);
-    }
-
-    if let Some(arr) = obj.get("Def") {
-        return interpret_def(arr, interpreter);
-    }
-
-    if let Some(arr) = obj.get("Assignment") {
-        return interpret_assignment(arr, interpreter);
+    } else if let Some(arr) = obj.get("Let") {
+        let (name, var) = interpret_var(arr, interpreter, "let")?;
+        // Place into new local environment
+        interpreter.enter_new_local();
+        interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
+        return Ok(var);
+    } else if let Some(arr) = obj.get("Def") {
+        let (name, var) = interpret_var(arr, interpreter, "def")?;
+        // Place into the current local environment
+        interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
+        return Ok(var);
+    } else if let Some(arr) = obj.get("Assignment") {
+        let (name, var) = interpret_var(arr, interpreter, "assignment")?;
+        // Try to assign
+        return interpreter.local.borrow_mut().assignment(&name, &var);
     }
 
     Err(InterpError::ParseError {
@@ -228,7 +172,10 @@ fn interpret_object(obj: &Map<String, Value>, interpreter: &mut Interpreter) -> 
 }
 
 /// Interpret a block expression, handling creating a new local environment on the environment's stack
-fn interpret_block(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
+fn interpret_block(
+    val: &serde_json::Value,
+    interpreter: &mut Interpreter,
+) -> Result<Expr, InterpError> {
     let old_local = interpreter.enter_new_local();
 
     let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, interpreter)? {
@@ -268,90 +215,80 @@ pub fn interpret_block_with_bindings(
     res
 }
 
-/// Assigns a new value to a variable identifier
-fn interpret_let(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
-    let [identifier, value] = match val.as_array() {
-        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
-        _ => {
-            return Err(InterpError::ParseError {
-                message: "let expression expectes an identifier and a value to be bound."
-                    .to_string(),
-            })
-        }
-    };
+/// Interprets creating a new variable
+fn interpret_var(
+    val: &serde_json::Value,
+    interpreter: &mut Interpreter,
+    expression_type: &str,
+) -> Result<(String, Expr), InterpError> {
+    let [identifier, value] =
+        match val.as_array() {
+            Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
+            _ => return Err(InterpError::ParseError {
+                message: format!(
+                    "{expression_type} expression expectes an identifier and a value to be bound."
+                )
+                .to_string(),
+            }),
+        };
 
     let ident_name = identifier
         .get("Identifier")
         .and_then(|n| n.as_str())
         .ok_or_else(|| {
             return InterpError::ParseError {
-                message: "Expecting an identifier in let expression".to_string(),
+                message: format!("Expecting an identifier in {expression_type} expression"),
             };
         })?;
 
     let ident_val = Expr::eval(value, interpreter)?;
 
-    // Place into new local environment
-    interpreter.enter_new_local();
-    interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
-
-    return Ok(ident_val);
+    return Ok((ident_name.to_string(), ident_val));
 }
 
-/// A definition is a binding that allows mutually-recursive functions to be defined
-/// In lexical scope, the local environment of the binding is the local environment of the block where the definition lies
-fn interpret_def(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
-    let [identifier, value] = match val.as_array() {
-        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
-        _ => {
-            return Err(InterpError::ParseError {
-                message: "def expression expectes an identifier and a value to be bound."
-                    .to_string(),
+impl TryInto<bool> for Expr {
+    type Error = InterpError;
+
+    fn try_into(self) -> Result<bool, Self::Error> {
+        if let Expr::Boolean(b) = self {
+            Ok(b)
+        } else {
+            Err(InterpError::TypeError {
+                expected: "bool".to_string(),
+                found: self.to_string(),
             })
         }
-    };
-
-    let ident_name = identifier
-        .get("Identifier")
-        .and_then(|n| n.as_str())
-        .ok_or_else(|| {
-            return InterpError::ParseError {
-                message: "Expecting an identifier in def expression".to_string(),
-            };
-        })?;
-
-    let ident_val = Expr::eval(value, interpreter)?;
-
-    // Place into the current local environment
-    interpreter.local.borrow_mut().bind(vec![(&ident_name.to_string(), &ident_val)]);
-
-    return Ok(ident_val);
+    }
 }
 
-/// Assigns a new value to an existing variable identifier
-fn interpret_assignment(val: &serde_json::Value, interpreter: &mut Interpreter) -> Result<Expr, InterpError> {
-    let [identifier, value] = match val.as_array() {
-        Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
-        _ => {
-            return Err(InterpError::ParseError {
-                message: "Assignment expression expectes an identifier and a value to be bound."
-                    .to_string(),
+impl TryInto<i64> for Expr {
+    type Error = InterpError;
+
+    fn try_into(self) -> Result<i64, Self::Error> {
+        if let Expr::Integer(i) = self {
+            Ok(i)
+        } else {
+            Err(InterpError::TypeError {
+                expected: "integer".to_string(),
+                found: self.to_string(),
             })
         }
-    };
+    }
+}
 
-    let ident_name = identifier
-        .get("Identifier")
-        .and_then(|n| n.as_str())
-        .ok_or_else(|| {
-            return InterpError::ParseError {
-                message: "Expecting an identifier in assignment expression".to_string(),
-            };
-        })?;
-    
-    let ident_val = Expr::eval(value, interpreter)?;
-    // Try to assign
-    interpreter.local.borrow_mut().assignment(ident_name, &ident_val)
+impl TryInto<String> for Expr {
+    type Error = InterpError;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        if let Expr::String(s) = self {
+            Ok(s.clone())
+        } else {
+            Err(InterpError::TypeError {
+                expected: "string".to_string(),
+                found: self.to_string(),
+            })
+        }
+    }
 }
 
 impl fmt::Display for Expr {
@@ -362,7 +299,7 @@ impl fmt::Display for Expr {
             Expr::String(val) => write!(fmt, "{}", val),
             Expr::List(list) => {
                 let values: Vec<_> = list.iter().map(|v| v.to_string()).collect();
-                write!(fmt, "{}", values.join(", "))
+                write!(fmt, "[{}]", values.join(", "))
             }
             Expr::Function(func) => match func {
                 Function::CoreFunction { name, func: _ } => write!(fmt, "function: {}", name),
@@ -386,7 +323,12 @@ impl fmt::Debug for Expr {
             Expr::List(values) => {
                 let formatted_values: Vec<String> =
                     values.iter().map(|v| format!("{:?}", v)).collect();
-                write!(f, "List([{}])", formatted_values.join(", "))
+                write!(
+                    f,
+                    "List([{}]), Length={}",
+                    formatted_values.join(", "),
+                    values.len()
+                )
             }
             Expr::Function(func) => write!(f, "Function({:?})", func),
         }
