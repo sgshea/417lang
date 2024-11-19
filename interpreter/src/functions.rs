@@ -271,9 +271,10 @@ pub fn println(args: &[Expr], global: &mut Environment) -> Result<Expr, InterpEr
             str.push_str("\n");
             global.add_output(str);
         } else {
-            println!("{}", arg);
+            print!("{}", arg);
         }
     }
+    println!();
 
     Ok(Expr::Boolean(true))
 }
