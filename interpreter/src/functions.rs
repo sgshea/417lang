@@ -289,16 +289,22 @@ pub fn print(args: &[Expr], global: &mut Environment) -> Result<Expr, InterpErro
 }
 
 pub fn println(args: &[Expr], global: &mut Environment) -> Result<Expr, InterpError> {
+    let mut str = String::new();
     for arg in args {
         if global.store_output {
-            let str = &mut arg.to_string();
-            str.push_str("\n");
-            global.add_output(str);
+            str.push_str(&mut arg.to_string());
         } else {
             print!("{}", arg);
         }
     }
-    println!();
+
+    // Add newline
+    if global.store_output {
+        str.push('\n');
+        global.add_output(&str);
+    } else {
+        println!();
+    }
 
     Ok(Expr::Boolean(true))
 }
@@ -429,7 +435,7 @@ pub fn get(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError
 // Second arg: idx
 // Thid arg: new element
 pub fn set(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(InterpError::ArgumentError {
             func: "set".to_string(),
             expected: 3,
@@ -459,5 +465,23 @@ pub fn length(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpEr
             expected: "string or list".to_string(),
             found: args[0].to_string(),
         }),
+    }
+}
+
+/// Sorts a list, returning new sorted list
+pub fn sort(args: &[Expr], _global: &mut Environment) -> Result<Expr, InterpError> {
+    if let Expr::List(list) = &args[0] {
+        // Make sure integers
+        let mut int_list = exprs_into_i64(list.as_slice())?;
+        int_list.sort();
+
+        Ok(Expr::List(
+            int_list.into_iter().map(|i| Expr::Integer(i)).collect(),
+        ))
+    } else {
+        Err(InterpError::TypeError {
+            expected: "integer list".to_string(),
+            found: args[0].to_string(),
+        })
     }
 }

@@ -10,7 +10,7 @@ const snippetFiles = [
     'snippets/helloworld.417',
     'snippets/cp5ex3.417',
     'snippets/multi_assignment.417',
-    // 'snippets/sort.417',
+    'snippets/sort.417',
     'snippets/def.417'
 ];
 
@@ -69,6 +69,8 @@ require(['vs/editor/editor.main'], async function () {
     }
     dropdown.addEventListener('change', updateEditorValue);
 
+    const timeText = document.getElementById('time');
+
     const runWasm = () => {
         // Get the code from the Monaco editor
         const code = editor.getValue();
@@ -79,6 +81,7 @@ require(['vs/editor/editor.main'], async function () {
 
         const useLexical = document.getElementById('useLexicalScope').checked;
 
+        const startTime = performance.now();
         if (useParse && useInterpret) {
             interpretResult = interpret_with_parser_to_string(code, useLexical);
         } else if (useParse) {
@@ -88,6 +91,9 @@ require(['vs/editor/editor.main'], async function () {
         } else {
             interpretResult = "Please select at least one option.";
         }
+        const timeTaken = performance.now() - startTime;
+        console.log(`Time taken to run program: ${timeTaken.toFixed(2)} milliseconds`);
+        timeText.innerText = "Time taken: " + timeTaken.toFixed(3);
 
         // Set the result onto the output editor
         outputEditor.setValue(interpretResult);

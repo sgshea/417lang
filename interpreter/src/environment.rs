@@ -6,7 +6,7 @@ use crate::error::InterpError;
 use crate::functions::Function::CoreFunction;
 use crate::functions::{
     add, as_list, concat, contains, dbg, div, eq, get, greater, length, less, mul, print, println,
-    rem, set, sub, to_lowercase, to_uppercase, zero,
+    rem, set, sort, sub, to_lowercase, to_uppercase, zero,
 };
 use crate::interpreter::Expr;
 
@@ -56,6 +56,7 @@ impl LocalEnvironment {
         env.add_builtin_func("as_list", as_list);
         env.add_builtin_func("get", get);
         env.add_builtin_func("set", set);
+        env.add_builtin_func("sort", sort);
         env.add_builtin("x", Expr::Integer(10));
         env.add_builtin("v", Expr::Integer(5));
         env.add_builtin("i", Expr::Integer(1));

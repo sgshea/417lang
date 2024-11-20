@@ -1,13 +1,76 @@
 {
+    // Slow Sort Function
+    def slow_sort = λ(arr, l, h) {
+        cond
+            (greater?(l, h) => arr) // Do nothing if the range is invalid
+            (equal?(l, h) => arr) // Do nothing if there's only one element
+            (true => {
+                // Recursively sort the array
+                let middle = div(add(l, h), 2);
+                arr = slow_sort(arr, l, middle);
+                arr = slow_sort(arr, add(l, 1), h);
+
+                // If the last element is smaller than the first, swap them
+                cond
+                    (less?(get(arr, h), get(arr, middle)) => {
+                        let temp = get(arr, l);
+                        arr = set(arr, l, get(arr, h));
+                        arr = set(arr, h, temp);
+                    });
+                
+                slow_sort(arr, l, sub(h, 1))
+            })
+    };
+
+    // Quicksort Function
+    def quicksort = λ(arr, low, high) {
+        cond
+            (greater?(low, high) => arr) // Do nothing if the range is invalid
+            (true => {
+                let pivot_index = high; // Choose the last element as the pivot
+                let pivot_value = get(arr, pivot_index);
+                let i = low; // Pointer for the smaller element
+
+                def partition = λ(j) {
+                    cond
+                        (greater?(j, sub(high, 1)) => {
+                            // Swap the pivot element with the element at i
+                            let temp = get(arr, i);
+                            arr = set(arr, i, get(arr, pivot_index));
+                            arr = set(arr, pivot_index, temp);
+                            arr
+                        })
+                        (true => {
+                            cond
+                                (less?(get(arr, j), pivot_value) => {
+                                    // Swap arr[i] and arr[j]
+                                    let temp = get(arr, i);
+                                    arr = set(arr, i, get(arr, j));
+                                    arr = set(arr, j, temp);
+                                    i = add(i, 1);
+                                });
+                            partition(add(j, 1));
+                        });
+                };
+
+                // Start partitioning from low
+                arr = partition(low);
+                
+                // Recursively apply quicksort to the left and right subarrays
+                arr = quicksort(arr, low, sub(i, 1));
+                arr = quicksort(arr, add(i, 1), high);
+                arr
+            })
+    };
+
     // Binary Search Function
     let binary_search = λ(sorted_list, target) {
-        // Helper function to perform the binary search
         def search = λ(low, high) {
             cond 
-                (greater?(low, high) => -1) // Base case: target not found
+                (greater?(low, high) => -1)
                 (true => {
-                    let mid = div(add(low, high), 2); // Calculate mid index
-                    let mid_value = get(sorted_list, mid); // Get the value at mid index
+                    let mid = div(add(low, high), 2);
+                    let mid_value = get(sorted_list, mid);
 
                     cond 
                         (equal?(mid_value, target) => mid) // Target found
@@ -22,10 +85,20 @@
 
     let unsorted_list = as_list(10, 3, 5, 1, 9, 2, 8, 4, 7, 6);
     println("Unsorted List: ", unsorted_list);
-    
-    slow_sort(unsorted_list, 0, sub(length(unsorted_list), 1));
-    
-    println("Sorted List: ", unsorted_list);
+
+    // Slow sort average time T(n) = 2T(n/2) + T(n-1) + 1
+    let slow_list = slow_sort(unsorted_list, 0, sub(length(unsorted_list), 1));
+    println("Slow sorted List: ", slow_list);
+
+    // Quick sort average time O(n log n)
+    let quick_list = quicksort(unsorted_list, 0, sub(length(unsorted_list), 1));
+    println("Quick sorted List: ", quick_list);
+
+    // Rust's sort function: a variant of driftsort combining fast average case of quicksort and fast worst case of mergesort
+    // On inputs with k distinct elements: O(n * log(k))
+    let sorted_list = sort(unsorted_list);
+    println("Sorted List: ", sorted_list);
+
     let target = 7;
     println("Index of ", target, ": ", binary_search(sorted_list, target));
     
