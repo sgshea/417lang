@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::{
     environment::{Environment, LocalEnvironment},
     error::InterpError,
-    interpreter::{interpret_block_with_bindings, Expr, Interpreter},
+    interpreter::{interpret_block, Expr, Interpreter},
 };
 
 #[derive(PartialEq, Eq, Clone)]
@@ -128,23 +128,27 @@ pub fn function_application(
                     // On lexical scope (default), functions use environment of where the function was originating from.
                     if interpreter.global.lexical_scope {
                         let current_local = interpreter.enter_local(local_env.clone());
-                        let result = interpret_block_with_bindings(
+                        let result = interpret_block(
                             &func,
                             interpreter,
-                            args.into_iter()
-                                .zip(rest.into_iter())
-                                .collect::<Vec<(&String, &Expr)>>(),
+                            Some(
+                                args.into_iter()
+                                    .zip(rest.into_iter())
+                                    .collect::<Vec<(&String, &Expr)>>(),
+                            ),
                         );
                         // Pop environment
                         interpreter.local = current_local;
                         return result;
                     } else {
-                        return interpret_block_with_bindings(
+                        return interpret_block(
                             &func,
                             interpreter,
-                            args.into_iter()
-                                .zip(rest.into_iter())
-                                .collect::<Vec<(&String, &Expr)>>(),
+                            Some(
+                                args.into_iter()
+                                    .zip(rest.into_iter())
+                                    .collect::<Vec<(&String, &Expr)>>(),
+                            ),
                         );
                     }
                 }

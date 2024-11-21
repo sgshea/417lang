@@ -1,5 +1,7 @@
 {
+    // Println inserts newline at end of all arguments
     println("hello world");
 
-    dbg("🦀");
+    // Debug prints the type along with the arguments
+    dbg("rust", " 🦀 ", 1, lambda(🦀){})
 }

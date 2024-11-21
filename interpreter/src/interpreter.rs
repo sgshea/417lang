@@ -110,7 +110,7 @@ fn interpret_object(
 
     // Handle blocks
     if let Some(key) = obj.get("Block") {
-        return interpret_block(key, interpreter);
+        return interpret_block(key, interpreter, None);
     } else if let Some(lambda) = obj.get("Lambda") {
         return parse_anonymous_function(lambda, None, interpreter);
     } else if let Some(arr) = obj.get("Application") {
@@ -147,18 +147,30 @@ fn interpret_object(
         }
         return Ok(Expr::Boolean(false));
     } else if let Some(arr) = obj.get("Let") {
-        let (name, var) = interpret_var(arr, interpreter, "let")?;
-        // Place into new local environment
-        interpreter.enter_new_local();
-        interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
-        return Ok(var);
+        let (name, var, block) = interpret_var(arr, interpreter, "let")?;
+        match block {
+            None => {
+                interpreter.enter_new_local();
+                interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
+                return Ok(var);
+            }
+            Some(b) => return interpret_block(&b, interpreter, Some(vec![(&name, &var)])),
+        }
     } else if let Some(arr) = obj.get("Def") {
-        let (name, var) = interpret_var(arr, interpreter, "def")?;
-        // Place into the current local environment
-        interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
-        return Ok(var);
+        let (name, var, block) = interpret_var(arr, interpreter, "def")?;
+        // Place into the current local environment (without new block)
+        match block {
+            None => {
+                interpreter.local.borrow_mut().bind(vec![(&name, &var)]);
+                return Ok(var);
+            }
+            Some(b) => {
+                // this case probably does not happen for def
+                return interpret_block(&b, interpreter, Some(vec![(&name, &var)]));
+            }
+        }
     } else if let Some(arr) = obj.get("Assignment") {
-        let (name, var) = interpret_var(arr, interpreter, "assignment")?;
+        let (name, var, _block) = interpret_var(arr, interpreter, "assignment")?;
         // Try to assign
         return interpreter.local.borrow_mut().assignment(&name, &var);
     }
@@ -172,43 +184,23 @@ fn interpret_object(
 }
 
 /// Interpret a block expression, handling creating a new local environment on the environment's stack
-fn interpret_block(
+/// Optionally provide some initial bindings (such as a function's block with arguments)
+pub fn interpret_block(
     val: &serde_json::Value,
     interpreter: &mut Interpreter,
+    bindings: Option<Vec<(&String, &Expr)>>,
 ) -> Result<Expr, InterpError> {
     let old_local = interpreter.enter_new_local();
+    if let Some(b) = bindings {
+        interpreter.local.borrow_mut().bind(b);
+    }
 
-    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, interpreter)? {
-        // Return false for empty block
-        Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
-    } else {
-        Err(InterpError::ParseError {
-            message: "Expected expressions within block.".to_string(),
-        })
-    };
-
-    // Pop top local environment as we exit block
-    interpreter.local = old_local;
-    res
-}
-
-/// Interpret a block expression, handling creating a new local environment on the environment's stack
-/// Special function to evaluate the block with some initial bindings (such as a function's block with arguments)
-pub fn interpret_block_with_bindings(
-    val: &serde_json::Value,
-    interpreter: &mut Interpreter,
-    bindings: Vec<(&String, &Expr)>,
-) -> Result<Expr, InterpError> {
-    let old_local = interpreter.enter_new_local();
-    interpreter.local.borrow_mut().bind(bindings);
-
-    let res: Result<Expr, InterpError> = if let Expr::List(list) = Expr::eval(&val, interpreter)? {
-        // Return false for empty block
-        Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
-    } else {
-        Err(InterpError::ParseError {
-            message: "Expected expressions within block.".to_string(),
-        })
+    let res = match Expr::eval(&val, interpreter)? {
+        Expr::List(list) => {
+            // Return last of list, or false if empty list
+            Ok(list.last().cloned().unwrap_or(Expr::Boolean(false)))
+        }
+        expr => Ok(expr),
     };
 
     interpreter.local = old_local;
@@ -220,30 +212,29 @@ fn interpret_var(
     val: &serde_json::Value,
     interpreter: &mut Interpreter,
     expression_type: &str,
-) -> Result<(String, Expr), InterpError> {
-    let [identifier, value] =
-        match val.as_array() {
-            Some(arr) if arr.len() == 2 => [&arr[0], &arr[1]],
-            _ => return Err(InterpError::ParseError {
-                message: format!(
-                    "{expression_type} expression expectes an identifier and a value to be bound."
-                )
-                .to_string(),
-            }),
-        };
+) -> Result<(String, Expr, Option<Value>), InterpError> {
+    if let Value::Array(arr) = val {
+        let ident_name = &arr[0]
+            .get("Identifier")
+            .and_then(|n| n.as_str())
+            .ok_or_else(|| {
+                return InterpError::ParseError {
+                    message: format!("Expecting an identifier in {expression_type} expression"),
+                };
+            })?;
 
-    let ident_name = identifier
-        .get("Identifier")
-        .and_then(|n| n.as_str())
-        .ok_or_else(|| {
-            return InterpError::ParseError {
-                message: format!("Expecting an identifier in {expression_type} expression"),
-            };
-        })?;
+        let ident_val = Expr::eval(&arr[1], interpreter)?;
 
-    let ident_val = Expr::eval(value, interpreter)?;
-
-    return Ok((ident_name.to_string(), ident_val));
+        // Expect third to be a block if exists (custom parser does not include block after lets)
+        let block = arr
+            .get(2)
+            .and_then(|v| v.as_object().and_then(|o| o.get("Block")));
+        Ok((ident_name.to_string(), ident_val, block.cloned()))
+    } else {
+        return Err(InterpError::ParseError {
+            message: format!("{val} in variable expression should be JSON array."),
+        });
+    }
 }
 
 impl TryInto<bool> for Expr {

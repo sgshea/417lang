@@ -15,7 +15,7 @@
                     (less?(get(arr, h), get(arr, middle)) => {
                         let temp = get(arr, l);
                         arr = set(arr, l, get(arr, h));
-                        arr = set(arr, h, temp);
+                        arr = set(arr, h, temp)
                     });
                 
                 slow_sort(arr, l, sub(h, 1))
@@ -31,7 +31,7 @@
                 let pivot_value = get(arr, pivot_index);
                 let i = low; // Pointer for the smaller element
 
-                def partition = λ(j) {
+                def partition = λ(arr, j) {
                     cond
                         (greater?(j, sub(high, 1)) => {
                             // Swap the pivot element with the element at i
@@ -47,14 +47,14 @@
                                     let temp = get(arr, i);
                                     arr = set(arr, i, get(arr, j));
                                     arr = set(arr, j, temp);
-                                    i = add(i, 1);
+                                    i = add(i, 1)
                                 });
-                            partition(add(j, 1));
-                        });
+                            partition(arr, add(j, 1))
+                        })
                 };
 
                 // Start partitioning from low
-                arr = partition(low);
+                arr = partition(arr, low);
                 
                 // Recursively apply quicksort to the left and right subarrays
                 arr = quicksort(arr, low, sub(i, 1));
@@ -80,7 +80,7 @@
         };
 
         // Start the search from the full range of the list
-        search(0, sub(length(sorted_list), 1));
+        search(0, sub(length(sorted_list), 1))
     };
 
     let unsorted_list = as_list(10, 3, 5, 1, 9, 2, 8, 4, 7, 6);
@@ -103,5 +103,5 @@
     println("Index of ", target, ": ", binary_search(sorted_list, target));
     
     target = 11;
-    println("Index of ", target, ": ", binary_search(sorted_list, target));
+    println("Index of ", target, ": ", binary_search(sorted_list, target))
 }

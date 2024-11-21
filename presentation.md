@@ -31,6 +31,7 @@ Cool things:
 # WebAssembly (Wasm)
 
 ![](wasm-diagram.png)
+https://webassembly.org/
 
 - WebAssembly is low level programming language that can be compiled to
 	- Open web standard, included in all browsers
@@ -42,7 +43,7 @@ Cool things:
     - [What is Wasm?](https://rustwasm.github.io/docs/book/what-is-webassembly.html)
 
 Demo: https://pages.github.ncsu.edu/sgshea/417-interp/
-- Also includes my custom parser
+- Also includes my custom parser (not 1-1 compatible)
 
 ---
 

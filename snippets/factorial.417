@@ -12,19 +12,19 @@
             (zero?(n) => 1) 
             (true => mul(n, fact(sub(n, 1))))
         };
-        println("cp6ex3: ", fact(7));
+        println("cp6ex3: ", fact(7))
     };
 
     // This is cp3ex4
     println("cp3ex4: ",
         λ(f, n) {
             cond 
-            (zero?(n) => 1) 
-            (true => mul(n, f(f, sub(n, 1))))
+                (zero?(n) => 1) 
+                (true => mul(n, f(f, sub(n, 1))))
         }
         (λ(f, n) {
             cond  
                 (zero?(n) => 1) 
                 (true => mul(n, f(f, sub(n, 1))))
-        }, 10));
+        }, 10))
 }
