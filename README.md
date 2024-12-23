@@ -1,5 +1,9 @@
 # CSC417 Language Project
 Language implemented in [Rust](https://www.rust-lang.org/)
+- This was a project created for a class "Programming Language Theory".
+- We were required to implement an interpreter for a simple expression based language.
+    - We could choose our implementation language
+    - A class parser (in C) was provided which output a JSON AST
 
 ## Repository Structure
 Repo organized into a Cargo Workspace, with two subcrates: `parser` and `interpreter`
@@ -33,6 +37,6 @@ Commands to build for wasm (specific to my machine for now)
 ```
 ~/.cargo/bin/wasm-pack build --target web --features "wasm"
 ```
-**GitHub Pages** at https://pages.github.ncsu.edu/sgshea/417-interp/
+**GitHub Pages** at https://sgshea.github.io/417lang/
 - Serves compiled wasm build from the `pages` branch
     - May not always be up to date
